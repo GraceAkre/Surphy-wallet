@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   Pressable,
   StyleSheet,
   Platform,
-  FlatList
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -15,10 +15,18 @@ import {
   ShoppingBag,
   Coffee,
   CreditCard,
-  Utensils,
-  ChevronRight
+  Send,
+  Banknote
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+// API
+import {
+  getCurrentUser,
+  getUserTransactions,
+  getMonthlyStats
+} from '../lib/api';
+import type { User, Transaction } from '../lib/types';
 
 // --- Types ---
 
@@ -31,47 +39,99 @@ type HistoryScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'History'>;
 };
 
-type Transaction = {
-  id: string;
-  merchant: string;
-  amount: number;
-  date: string;
-  type: 'expense' | 'income';
-  status: 'approved' | 'review' | 'blocked';
-  category: string;
-  icon: any;
-  bg: string;
-};
-
-// --- Mock Data ---
-
-const ALL_TRANSACTIONS: Transaction[] = [
-  { id: '1', merchant: 'Carrefour Market', amount: 42.50, date: "25 Jan", type: 'expense', status: 'approved', category: 'courses', icon: ShoppingBag, bg: '#DBEAFE' },
-  { id: '2', merchant: 'Uber Eats', amount: 18.90, date: '24 Jan', type: 'expense', status: 'approved', category: 'food', icon: Utensils, bg: '#FCE7F3' },
-  { id: '3', merchant: 'Virement Maman', amount: 150.00, date: '22 Jan', type: 'income', status: 'approved', category: 'transfer', icon: CreditCard, bg: '#E0E7FF' },
-  { id: '4', merchant: 'Snack Cafétéria', amount: 4.20, date: '20 Jan', type: 'expense', status: 'review', category: 'food', icon: Coffee, bg: '#FEF3C7' },
-  { id: '5', merchant: 'Amazon', amount: 89.99, date: '18 Jan', type: 'expense', status: 'blocked', category: 'shopping', icon: ShoppingBag, bg: '#FEE2E2' },
-  { id: '6', merchant: 'Netflix', amount: 13.49, date: '15 Jan', type: 'expense', status: 'approved', category: 'subscription', icon: CreditCard, bg: '#E0E7FF' },
-  { id: '7', merchant: 'Starbucks', amount: 5.90, date: '14 Jan', type: 'expense', status: 'approved', category: 'food', icon: Coffee, bg: '#FCE7F3' },
-  { id: '8', merchant: 'Virement Papa', amount: 200.00, date: '10 Jan', type: 'income', status: 'approved', category: 'transfer', icon: CreditCard, bg: '#E0E7FF' },
-];
-
 const FILTER_OPTIONS = [
   { id: 'all', label: 'Tout' },
   { id: 'approved', label: 'Validées' },
-  { id: 'review', label: 'En revue' },
+  { id: 'flagged', label: 'En revue' },
   { id: 'blocked', label: 'Bloquées' },
 ];
+
+// Helper pour obtenir l'icône selon le type de transaction
+const getTransactionIcon = (tx: Transaction) => {
+  if (tx.transaction_type === 'transfer') return Send;
+  if (tx.transaction_type === 'deposit') return Banknote;
+  if (tx.merchant_id?.includes('cafet') || tx.merchant_id?.includes('snack')) return Coffee;
+  if (tx.merchant_id?.includes('shop') || tx.merchant_id?.includes('store')) return ShoppingBag;
+  return CreditCard;
+};
+
+// Helper pour obtenir la couleur de fond selon le type
+const getTransactionBg = (tx: Transaction) => {
+  if (tx.status === 'blocked') return '#FEE2E2';
+  if (tx.direction === 'incoming') return '#E0E7FF';
+  if (tx.transaction_type === 'transfer') return '#FCE7F3';
+  if (tx.merchant_id?.includes('cafet')) return '#FEF3C7';
+  return '#DBEAFE';
+};
+
+// Helper pour formater la date
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+};
+
+// Helper pour obtenir le nom du merchant lisible
+const getMerchantName = (tx: Transaction) => {
+  if (!tx.merchant_id) return 'Transaction';
+
+  const merchantNames: Record<string, string> = {
+    'cafet_paris': 'Cafétéria Paris',
+    'cafet_marseille': 'Cafétéria Marseille',
+    'cafet_toulouse': 'Cafétéria Toulouse',
+    'luxury_store_ru': 'Luxury Store (Moscow)',
+    'night_shop': 'Night Shop',
+    'shop_paris': 'Shop Paris',
+    'p2p_transfer': 'Transfert P2P',
+    'stripe': 'Dépôt Stripe',
+    'electronics_msl': 'Electronics Marseille',
+  };
+
+  return merchantNames[tx.merchant_id] || tx.merchant_id;
+};
 
 export default function HistoryScreen({ navigation }: HistoryScreenProps) {
   const insets = useSafeAreaInsets();
   const [activeFilter, setActiveFilter] = useState('all');
+  const [loading, setLoading] = useState(true);
+
+  // Data from Supabase
+  const [user, setUser] = useState<User | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [monthlyStats, setMonthlyStats] = useState({ expenses: 0, income: 0, balance: 0 });
+
+  // Fetch data
+  const fetchData = useCallback(async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        console.error('No user found');
+        return;
+      }
+      setUser(currentUser);
+
+      const [userTransactions, stats] = await Promise.all([
+        getUserTransactions(currentUser.id),
+        getMonthlyStats(currentUser.id),
+      ]);
+
+      setTransactions(userTransactions);
+      setMonthlyStats(stats);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // --- Filtered Transactions ---
   const filteredTransactions = useMemo(() => {
-    if (activeFilter === 'all') return ALL_TRANSACTIONS;
-    return ALL_TRANSACTIONS.filter(tx => tx.status === activeFilter);
-  }, [activeFilter]);
+    if (activeFilter === 'all') return transactions;
+    return transactions.filter(tx => tx.status === activeFilter);
+  }, [activeFilter, transactions]);
 
   // --- Components ---
 
@@ -88,8 +148,9 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
   );
 
   const TransactionItem = ({ item, index }: { item: Transaction; index: number }) => {
-    const Icon = item.icon;
+    const Icon = getTransactionIcon(item);
     const isLast = index === filteredTransactions.length - 1;
+    const bgColor = getTransactionBg(item);
 
     const getStatusBadge = () => {
       switch (item.status) {
@@ -99,7 +160,7 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
               <Text className="text-white text-[10px] font-bold">VALIDÉE</Text>
             </View>
           );
-        case 'review':
+        case 'flagged':
           return (
             <View className="bg-amber-500 px-2 py-0.5 rounded-md">
               <Text className="text-white text-[10px] font-bold">EN REVUE</Text>
@@ -109,6 +170,12 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
           return (
             <View className="bg-red-500 px-2 py-0.5 rounded-md">
               <Text className="text-white text-[10px] font-bold">BLOQUÉE</Text>
+            </View>
+          );
+        default:
+          return (
+            <View className="bg-gray-400 px-2 py-0.5 rounded-md">
+              <Text className="text-white text-[10px] font-bold">EN ATTENTE</Text>
             </View>
           );
       }
@@ -123,26 +190,36 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
         className={`flex-row items-center px-4 py-3.5 ${!isLast ? 'border-b border-gray-100' : ''}`}
       >
         {/* Icon */}
-        <View className="w-12 h-12 rounded-full items-center justify-center mr-3" style={{ backgroundColor: item.bg }}>
+        <View className="w-12 h-12 rounded-full items-center justify-center mr-3" style={{ backgroundColor: bgColor }}>
           <Icon size={20} color="#374151" />
         </View>
 
         {/* Info */}
         <View className="flex-1 gap-0.5">
-          <Text className="text-gray-900 font-semibold text-[15px]">{item.merchant}</Text>
-          <Text className="text-gray-400 text-[13px]">{item.date}</Text>
+          <Text className="text-gray-900 font-semibold text-[15px]">{getMerchantName(item)}</Text>
+          <Text className="text-gray-400 text-[13px]">{formatDate(item.created_at)}</Text>
         </View>
 
         {/* Amount & Status */}
         <View className="items-end gap-1">
-          <Text className={`font-bold text-[15px] ${item.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
-            {item.type === 'income' ? '+' : '-'}{item.amount.toFixed(2)} €
+          <Text className={`font-bold text-[15px] ${item.direction === 'incoming' ? 'text-green-600' : 'text-gray-900'}`}>
+            {item.direction === 'incoming' ? '+' : '-'}{item.amount.toFixed(2)} €
           </Text>
           {getStatusBadge()}
         </View>
       </Pressable>
     );
   };
+
+  // --- Loading State ---
+  if (loading) {
+    return (
+      <View className="flex-1 bg-[#F3F4F6] items-center justify-center">
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text className="text-gray-500 mt-4">Chargement...</Text>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-[#F3F4F6]">
@@ -208,15 +285,21 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
           <View className="flex-row justify-between">
             <View>
               <Text className="text-gray-400 text-xs">Dépenses</Text>
-              <Text className="text-red-600 font-bold text-lg">-174,98 €</Text>
+              <Text className="text-red-600 font-bold text-lg">
+                -{monthlyStats.expenses.toFixed(2)} €
+              </Text>
             </View>
             <View>
               <Text className="text-gray-400 text-xs">Revenus</Text>
-              <Text className="text-green-600 font-bold text-lg">+350,00 €</Text>
+              <Text className="text-green-600 font-bold text-lg">
+                +{monthlyStats.income.toFixed(2)} €
+              </Text>
             </View>
             <View>
               <Text className="text-gray-400 text-xs">Solde</Text>
-              <Text className="text-blue-600 font-bold text-lg">+175,02 €</Text>
+              <Text className={`font-bold text-lg ${monthlyStats.balance >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                {monthlyStats.balance >= 0 ? '+' : ''}{monthlyStats.balance.toFixed(2)} €
+              </Text>
             </View>
           </View>
         </View>

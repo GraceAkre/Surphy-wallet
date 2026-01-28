@@ -449,14 +449,14 @@ CREATE POLICY "Users can create own transactions"
 ON transactions FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
--- Les analystes (@epitech.eu) peuvent voir toutes les transactions
+-- Les analystes (@epitech.digital) peuvent voir toutes les transactions
 CREATE POLICY "Analysts can view all transactions"
 ON transactions FOR SELECT
 USING (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.eu'
+        AND email LIKE '%@epitech.digital'
     )
 );
 
@@ -471,7 +471,7 @@ WITH CHECK (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.eu'
+        AND email LIKE '%@epitech.digital'
     )
 );
 
@@ -482,7 +482,7 @@ USING (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.eu'
+        AND email LIKE '%@epitech.digital'
     )
 );
 
@@ -566,11 +566,11 @@ CREATE TRIGGER update_peers_updated_at
 -- Campus autorisés par défaut
 INSERT INTO peers (campus_name, base_url, jwks_url, public_key, status, allowed_domains)
 VALUES
-    ('Paris', 'https://paris.surphy-wallet.com', 'https://paris.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.eu']),
-    ('Lyon', 'https://lyon.surphy-wallet.com', 'https://lyon.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.eu']),
-    ('Bordeaux', 'https://bordeaux.surphy-wallet.com', 'https://bordeaux.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.eu']),
-    ('Lille', 'https://lille.surphy-wallet.com', 'https://lille.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.eu']),
-    ('Nantes', 'https://nantes.surphy-wallet.com', 'https://nantes.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.eu'])
+    ('Paris', 'https://paris.surphy-wallet.com', 'https://paris.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
+    ('Lyon', 'https://lyon.surphy-wallet.com', 'https://lyon.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
+    ('Bordeaux', 'https://bordeaux.surphy-wallet.com', 'https://bordeaux.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
+    ('Lille', 'https://lille.surphy-wallet.com', 'https://lille.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
+    ('Nantes', 'https://nantes.surphy-wallet.com', 'https://nantes.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital'])
 ON CONFLICT (campus_name) DO NOTHING;
 
 -- =============================================================================

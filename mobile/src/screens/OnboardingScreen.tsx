@@ -13,7 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ShieldCheck,
   Mail,
-  ArrowRight
+  ArrowRight,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Svg, { Circle, Path, G } from 'react-native-svg';
@@ -57,15 +57,9 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
 
   // --- Handlers ---
 
-  const handleGoogleSignIn = async () => {
-    // Logique OAuth Google via Supabase
-    Alert.alert("Google Sign-In", "Connexion Google (à implémenter avec Supabase OAuth)");
-  };
-
   const handleEmailSignIn = () => {
-    // Navigation vers écran Email/Password
-    // Pour l'instant, on navigue directement vers Main pour test
-    navigation.navigate('Main');
+    // Navigation vers écran de connexion par email
+    navigation.navigate('EmailLogin');
   };
 
   return (
@@ -99,25 +93,7 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
         {/* 3. CTA Buttons */}
         <View style={styles.ctaSection}>
 
-          {/* Google Button (Primary) */}
-          <Pressable
-            onPress={handleGoogleSignIn}
-            style={({ pressed }) => [
-              styles.googleButton,
-              { transform: [{ scale: pressed ? 0.98 : 1 }] }
-            ]}
-          >
-            <View style={styles.googleIconContainer}>
-              {/* Google "G" Icon simplifié */}
-              <Text style={styles.googleIcon}>G</Text>
-            </View>
-            <Text style={styles.googleButtonText}>
-              Continuer avec Google
-            </Text>
-            <ArrowRight size={20} color="#374151" style={{ marginLeft: 'auto' }} />
-          </Pressable>
-
-          {/* Email Button (Secondary) */}
+          {/* Email Button (Primary) */}
           <Pressable
             onPress={handleEmailSignIn}
             style={({ pressed }) => [
@@ -127,8 +103,9 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
           >
             <Mail size={20} color="white" />
             <Text style={styles.emailButtonText}>
-              Connexion avec Email
+              Continuer avec Email
             </Text>
+            <ArrowRight size={20} color="white" style={{ marginLeft: 'auto' }} />
           </Pressable>
 
         </View>
@@ -201,50 +178,9 @@ const styles = StyleSheet.create({
   ctaSection: {
     gap: 12,
   },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
-  },
-  googleIconContainer: {
-    width: 24,
-    height: 24,
-    backgroundColor: '#4285F4',
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  googleIcon: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  googleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-  },
   emailButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     backgroundColor: '#3B82F6',
     paddingVertical: 16,
     paddingHorizontal: 20,

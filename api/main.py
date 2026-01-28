@@ -15,9 +15,12 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+load_dotenv(dotenv_path=".env.local")
 
 from api.database import get_db_session, DatabaseError
 from ml.engine import FraudDetectionEngine

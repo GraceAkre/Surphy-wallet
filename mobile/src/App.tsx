@@ -12,17 +12,18 @@ import {
   ShieldAlert 
 } from 'lucide-react-native';
 
-// --- Imports des Écrans (Générés précédemment) ---
-// Assure-toi que les noms de fichiers correspondent
+// --- Imports des Écrans ---
 import OnboardingScreen from './screens/OnboardingScreen';
+import EmailLoginScreen from './screens/EmailLoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import CardVirtualScreen from './screens/CardVirtualScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import VerificationScreen from './screens/VerificationScreen';
-import ExplicabilityModal from './screens/ExplicabilityModal'; // Souvent utilisé comme composant interne, mais peut être un écran modal
+import ExplicabilityModal from './screens/ExplicabilityModal';
 import CardPaymentScreen from './screens/CardPaymentScreen';
 import RiskGaugeScreen from './screens/RiskGaugeScreen';
+import InteroperabilityScreen from './screens/InteroperabilityScreen';
 
 // --- Définition des Types de Navigation (Le "Contrat") ---
 
@@ -30,15 +31,15 @@ export type RootStackParamList = {
   // Flux d'Auth
   Onboarding: undefined;
   EmailLogin: undefined;
-  Register: undefined;
-  
+
   // Flux Principal
   Main: undefined; // Contient le TabNavigator
-  
+
   // Écrans Fonctionnels
   CardPayment: undefined;
   TransactionDetail: { id: string }; // Requis par History & Home
-  
+  Interoperability: undefined; // Inter-campus
+
   // Flux de Sécurité (Modales)
   Verification: { transactionId: string }; // Requis par Home & RiskGauge
   Explicability: { transactionId: string; reasons: string[] };
@@ -135,7 +136,7 @@ export default function App() {
           {/* Groupe 1 : Authentification */}
           <Stack.Group>
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            {/* Ajoute ici EmailLogin et Register quand tu les auras */}
+            <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
           </Stack.Group>
 
           {/* Groupe 2 : Application Principale */}
@@ -147,10 +148,15 @@ export default function App() {
             component={CardPaymentScreen} 
             options={{ animation: 'slide_from_right' }}
           />
-          <Stack.Screen 
-            name="RiskGauge" 
-            component={RiskGaugeScreen} 
-            options={{ animation: 'fade' }} // Transition douce pour l'écran analyste
+          <Stack.Screen
+            name="RiskGauge"
+            component={RiskGaugeScreen}
+            options={{ animation: 'fade' }}
+          />
+          <Stack.Screen
+            name="Interoperability"
+            component={InteroperabilityScreen}
+            options={{ animation: 'slide_from_right' }}
           />
 
           {/* Groupe 4 : Modales (S'ouvrent par-dessus) */}
