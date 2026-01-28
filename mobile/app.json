@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Surphy Wallet",
+    "slug": "surphy-wallet",
+    "version": "1.0.0",
+    "sdkVersion": "50.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.surphy.wallet"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#3B82F6"
+      },
+      "package": "com.surphy.wallet"
+    },
+    "plugins": [
+      "expo-local-authentication"
+    ]
+  }
+}
