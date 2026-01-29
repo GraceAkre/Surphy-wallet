@@ -4,17 +4,18 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
-  Platform,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { supabase } from '../lib/supabase';
+import { shadows } from '../utils/shadows';
+import { useHaptics } from '../hooks/useHaptics';
 
 // --- Types ---
 
@@ -34,6 +35,8 @@ const OTP_LENGTH = 6;
 
 export default function OTPVerificationScreen({ navigation, route }: OTPVerificationScreenProps) {
   const { email } = route.params;
+  const { light, success, error: hapticError } = useHaptics();
+
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -48,7 +51,6 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
   }, [resendCooldown]);
 
   const handleOtpChange = (value: string, index: number) => {
-    // Only allow digits
     if (value && !/^\d+$/.test(value)) return;
 
     const newOtp = [...otp];
@@ -68,7 +70,6 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
       newOtp[index] = value;
       setOtp(newOtp);
 
-      // Auto-focus next input
       if (value && index < OTP_LENGTH - 1) {
         inputRefs.current[index + 1]?.focus();
       }
@@ -89,6 +90,7 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
 
   const verifyOtp = async (code: string) => {
     setLoading(true);
+    light();
 
     try {
       const { data, error } = await supabase.auth.verifyOtp({
@@ -98,7 +100,7 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
       });
 
       if (error) {
-        console.error('OTP Verification Error:', error);
+        hapticError();
         Alert.alert('Code invalide', 'Le code entré est incorrect ou a expiré.');
         setOtp(Array(OTP_LENGTH).fill(''));
         inputRefs.current[0]?.focus();
@@ -106,14 +108,14 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
       }
 
       if (data.session) {
-        // Succès - naviguer vers Main
+        success();
         navigation.reset({
           index: 0,
           routes: [{ name: 'Main' }],
         });
       }
-    } catch (error) {
-      console.error('Error:', error);
+    } catch (err) {
+      hapticError();
       Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -124,6 +126,7 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
     if (resendCooldown > 0) return;
 
     setLoading(true);
+    light();
 
     try {
       const { error } = await supabase.auth.signInWithOtp({
@@ -141,7 +144,7 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
       Alert.alert('Code envoyé', 'Un nouveau code a été envoyé à votre adresse email.');
       setResendCooldown(60);
       setOtp(Array(OTP_LENGTH).fill(''));
-    } catch (error) {
+    } catch (err) {
       Alert.alert('Erreur', 'Une erreur est survenue.');
     } finally {
       setLoading(false);
@@ -149,43 +152,49 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        className="flex-1"
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View className="px-4 py-3">
           <Pressable
             onPress={() => navigation.goBack()}
-            style={styles.backButton}
+            className="w-11 h-11 rounded-full bg-surface items-center justify-center border border-separator-opaque"
+            style={shadows.soft}
           >
-            <ChevronLeft size={24} color="#111827" />
+            <ChevronLeft size={24} color="#1D1D1F" />
           </Pressable>
         </View>
 
         {/* Content */}
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <ShieldCheck size={32} color="#10B981" />
+        <View className="flex-1 px-6 pt-6 items-center">
+          {/* Icon */}
+          <View className="w-16 h-16 rounded-card bg-success-50 items-center justify-center mb-6">
+            <ShieldCheck size={32} color="#34C759" />
           </View>
 
-          <Text style={styles.title}>Vérification</Text>
-          <Text style={styles.subtitle}>
+          {/* Title */}
+          <Text className="text-title1 text-ink-primary text-center mb-2">
+            Vérification
+          </Text>
+          <Text className="text-body text-ink-secondary text-center leading-relaxed mb-8">
             Entrez le code à 6 chiffres envoyé à{'\n'}
-            <Text style={styles.emailText}>{email}</Text>
+            <Text className="text-primary font-semibold">{email}</Text>
           </Text>
 
           {/* OTP Input */}
-          <View style={styles.otpContainer}>
+          <View className="flex-row justify-center gap-3 mb-8">
             {otp.map((digit, index) => (
               <TextInput
                 key={index}
                 ref={(ref) => (inputRefs.current[index] = ref)}
-                style={[
-                  styles.otpInput,
-                  digit ? styles.otpInputFilled : null
-                ]}
+                className={`
+                  w-12 h-14 bg-surface border-2 rounded-input
+                  text-title2 text-ink-primary text-center
+                  ${digit ? 'border-primary bg-primary-50' : 'border-separator-opaque'}
+                `}
                 value={digit}
                 onChangeText={(value) => handleOtpChange(value, index)}
                 onKeyPress={(e) => handleKeyPress(e, index)}
@@ -197,24 +206,32 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
             ))}
           </View>
 
+          {/* Loading */}
           {loading && (
-            <View style={styles.loadingContainer}>
+            <View className="items-center mb-6">
               <ActivityIndicator size="large" color="#3B82F6" />
-              <Text style={styles.loadingText}>Vérification en cours...</Text>
+              <Text className="text-subheadline text-ink-secondary mt-3">
+                Vérification en cours...
+              </Text>
             </View>
           )}
 
           {/* Resend */}
-          <View style={styles.resendContainer}>
-            <Text style={styles.resendText}>Vous n'avez pas reçu le code ?</Text>
+          <View className="flex-row items-center gap-1">
+            <Text className="text-subheadline text-ink-secondary">
+              Vous n'avez pas reçu le code ?
+            </Text>
             <Pressable
               onPress={handleResend}
               disabled={resendCooldown > 0 || loading}
             >
-              <Text style={[
-                styles.resendLink,
-                (resendCooldown > 0 || loading) && styles.resendLinkDisabled
-              ]}>
+              <Text
+                className={`text-subheadline font-semibold ${
+                  resendCooldown > 0 || loading
+                    ? 'text-ink-disabled'
+                    : 'text-primary'
+                }`}
+              >
                 {resendCooldown > 0 ? `Renvoyer (${resendCooldown}s)` : 'Renvoyer'}
               </Text>
             </Pressable>
@@ -224,107 +241,3 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#ECFDF5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    lineHeight: 24,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  emailText: {
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 32,
-  },
-  otpInput: {
-    width: 48,
-    height: 56,
-    backgroundColor: 'white',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-    color: '#111827',
-  },
-  otpInputFilled: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  resendContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  resendText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  resendLink: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  resendLinkDisabled: {
-    color: '#9CA3AF',
-  },
-});

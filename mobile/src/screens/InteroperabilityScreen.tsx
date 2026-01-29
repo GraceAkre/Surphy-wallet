@@ -3,27 +3,35 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   FlatList,
-  SafeAreaView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Search,
   ChevronLeft,
   ShieldAlert,
   MessageCircle,
   Send,
-  Building2
+  Building2,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
+
+// Components
+import { Card, Badge, Button, Input } from '../components/ui';
+
+// Utils
+import { shadows } from '../utils/shadows';
+import { useHaptics } from '../hooks/useHaptics';
 
 // API
 import { getAllPeers } from '../lib/api';
 import type { Peer, PeerStatus } from '../lib/types';
 
-// --- Types pour l'affichage ---
+// --- Types ---
+
 interface CampusDisplay {
   id: string;
   name: string;
@@ -32,9 +40,8 @@ interface CampusDisplay {
   blockedReason?: string;
 }
 
-// Helper pour extraire le pays depuis l'URL (ex: paris.surphy-wallet.com -> France)
+// Helper pour extraire le pays depuis le campus
 const getCountryFromCampus = (campusName: string): string => {
-  // Tous les campus sont en France pour l'instant
   return 'France';
 };
 
@@ -44,12 +51,45 @@ const mapPeerToDisplay = (peer: Peer): CampusDisplay => ({
   name: `Epitech ${peer.campus_name}`,
   country: getCountryFromCampus(peer.campus_name),
   status: peer.status,
-  blockedReason: peer.status === 'suspended' ? 'Campus suspendu temporairement' :
-                 peer.status === 'revoked' ? 'CAMPUS_NOT_ALLOWED (R8)' : undefined,
+  blockedReason:
+    peer.status === 'suspended'
+      ? 'Campus suspendu temporairement'
+      : peer.status === 'revoked'
+        ? 'CAMPUS_NOT_ALLOWED (R8)'
+        : undefined,
 });
+
+const getStatusVariant = (status: PeerStatus): 'success' | 'warning' | 'danger' | 'neutral' => {
+  switch (status) {
+    case 'active':
+      return 'success';
+    case 'suspended':
+      return 'warning';
+    case 'revoked':
+      return 'danger';
+    default:
+      return 'neutral';
+  }
+};
+
+const getStatusLabel = (status: PeerStatus): string => {
+  switch (status) {
+    case 'active':
+      return 'Actif';
+    case 'suspended':
+      return 'Suspendu';
+    case 'revoked':
+      return 'Révoqué';
+    default:
+      return status;
+  }
+};
 
 export default function InteroperabilityScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
+  const { light, selection } = useHaptics();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,179 +115,193 @@ export default function InteroperabilityScreen() {
   const campuses = useMemo(() => peers.map(mapPeerToDisplay), [peers]);
 
   // Filtrage
-  const filteredCampuses = useMemo(() =>
-    campuses.filter(c =>
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.country.toLowerCase().includes(searchQuery.toLowerCase())
-    ),
+  const filteredCampuses = useMemo(
+    () =>
+      campuses.filter(
+        (c) =>
+          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          c.country.toLowerCase().includes(searchQuery.toLowerCase())
+      ),
     [campuses, searchQuery]
   );
 
-  // Gestion des actions
+  // Handlers
   const handleCampusPress = (campus: CampusDisplay) => {
+    selection();
     if (campus.status === 'suspended' || campus.status === 'revoked') {
       Alert.alert('Campus Bloqué', `Raison: ${campus.blockedReason}`);
       return;
     }
-    setSelectedCampus(campus.id);
+    setSelectedCampus(selectedCampus === campus.id ? null : campus.id);
   };
 
-  const getStatusColor = (status: PeerStatus) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-700';
-      case 'suspended': return 'bg-yellow-100 text-yellow-700';
-      case 'revoked': return 'bg-red-100 text-red-700';
-      default: return 'bg-gray-100 text-gray-700';
+  const handleContact = () => {
+    light();
+    Alert.alert('Contact', 'Fonctionnalité à venir');
+  };
+
+  const handleTransfer = () => {
+    light();
+    if (selectedCampus) {
+      Alert.alert('Transfert', 'Fonctionnalité à venir');
+    } else {
+      Alert.alert('Sélection requise', 'Veuillez sélectionner un campus');
     }
   };
 
-  const getStatusLabel = (status: PeerStatus) => {
-    switch (status) {
-      case 'active': return 'Actif';
-      case 'suspended': return 'Suspendu';
-      case 'revoked': return 'Révoqué';
-      default: return status;
-    }
-  };
-
-  // --- Rendu d'une carte ---
+  // --- Render Campus Card ---
   const renderCampusCard = ({ item }: { item: CampusDisplay }) => {
     const isSelected = selectedCampus === item.id;
     const isBlocked = item.status === 'suspended' || item.status === 'revoked';
 
     return (
-      <TouchableOpacity
+      <Pressable
         onPress={() => handleCampusPress(item)}
-        activeOpacity={0.7}
+        style={({ pressed }) => [
+          shadows.card,
+          {
+            transform: [{ scale: pressed ? 0.98 : 1 }],
+            opacity: isBlocked ? 0.8 : 1,
+          },
+        ]}
         className={`
-          p-4 mb-3 rounded-2xl border
-          ${isSelected ? 'bg-[#D6E8FF] border-blue-300' : 'bg-white border-gray-100'}
-          ${isBlocked ? 'opacity-80' : ''}
-          shadow-sm
+          p-4 mb-3 rounded-2xl border-2
+          ${isSelected ? 'bg-primary-50 border-primary' : 'bg-surface border-separator-opaque'}
         `}
       >
         <View className="flex-row items-center justify-between">
-          {/* Info Gauche : Icone + Nom */}
+          {/* Left: Icon + Name */}
           <View className="flex-row items-center gap-3">
-            <View className={`w-10 h-10 rounded-xl items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-gray-100'}`}>
-              <Building2 size={20} color={isSelected ? 'white' : '#666'} />
+            <View
+              className={`w-10 h-10 rounded-xl items-center justify-center ${
+                isSelected ? 'bg-primary' : 'bg-background'
+              }`}
+            >
+              <Building2 size={20} color={isSelected ? 'white' : '#6E6E73'} />
             </View>
             <View>
-              <Text className="text-base font-semibold text-black">
-                {item.name}
-              </Text>
-              <Text className="text-xs text-gray-500">
-                {item.country}
-              </Text>
+              <Text className="text-headline text-ink-primary">{item.name}</Text>
+              <Text className="text-footnote text-ink-tertiary">{item.country}</Text>
             </View>
           </View>
 
-          {/* Info Droite : Badge Statut */}
-          <View className={`px-2 py-1 rounded-full ${getStatusColor(item.status).split(' ')[0]}`}>
-            <Text className={`text-xs font-medium ${getStatusColor(item.status).split(' ')[1]}`}>
-              {getStatusLabel(item.status)}
-            </Text>
-          </View>
+          {/* Right: Status Badge */}
+          <Badge variant={getStatusVariant(item.status)} size="sm">
+            {getStatusLabel(item.status)}
+          </Badge>
         </View>
 
-        {/* Info Bonus : Raison du blocage (Si bloqué) */}
+        {/* Blocked Reason */}
         {item.blockedReason && (
-          <View className="mt-3 flex-row items-center gap-2 bg-red-50 p-2 rounded-lg">
-            <ShieldAlert size={14} color="#EF4444" />
-            <Text className="text-xs text-red-600 font-medium">
-              {item.blockedReason}
-            </Text>
+          <View className="mt-3 flex-row items-center gap-2 bg-danger-50 p-2 rounded-lg">
+            <ShieldAlert size={14} color="#FF3B30" />
+            <Text className="text-footnote text-danger font-medium">{item.blockedReason}</Text>
           </View>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
   // --- Loading State ---
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-[#F5F5F7] items-center justify-center">
+      <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text className="text-gray-500 mt-4">Chargement des campus...</Text>
-      </SafeAreaView>
+        <Text className="text-body text-ink-secondary mt-4">Chargement des campus...</Text>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#F5F5F7]">
-      {/* --- HEADER --- */}
-      <View className="px-5 py-4 flex-row items-center justify-between">
-        <TouchableOpacity onPress={() => navigation.goBack()} className="p-2 -ml-2">
-          <ChevronLeft size={24} color="#000" />
-        </TouchableOpacity>
-        <Text className="text-xl font-bold text-black">
-          Inter-Campus
-        </Text>
-        <View className="w-8" />
-      </View>
+    <View className="flex-1 bg-background">
+      {/* Header */}
+      <SafeAreaView edges={['top']} className="bg-background">
+        <View className="px-screen py-4 flex-row items-center justify-between">
+          <Pressable
+            onPress={() => {
+              light();
+              navigation.goBack();
+            }}
+            className="w-11 h-11 justify-center"
+          >
+            <ChevronLeft size={28} color="#1D1D1F" />
+          </Pressable>
+          <Text className="text-title2 text-ink-primary">Inter-Campus</Text>
+          <View className="w-11" />
+        </View>
+      </SafeAreaView>
 
-      <View className="flex-1 px-5">
-        {/* --- SEARCH BAR --- */}
-        <View className="flex-row items-center bg-white rounded-full px-4 h-12 mb-6 border border-gray-200 shadow-sm">
-          <Search size={20} color="#9CA3AF" />
+      <View className="flex-1 px-screen">
+        {/* Search Bar */}
+        <View
+          className="flex-row items-center bg-surface rounded-input px-4 h-12 mb-6 border border-separator-opaque"
+          style={shadows.soft}
+        >
+          <Search size={20} color="#86868B" />
           <TextInput
-            className="flex-1 ml-3 text-base text-black"
+            className="flex-1 ml-3 text-body text-ink-primary"
             placeholder="Rechercher un campus..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor="#86868B"
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
         </View>
 
-        {/* --- LISTE DES CAMPUS --- */}
-        <Text className="text-sm font-semibold text-gray-500 mb-3 uppercase tracking-wider">
+        {/* List Header */}
+        <Text className="text-footnote text-ink-tertiary mb-3 uppercase tracking-wider font-semibold">
           Partenaires ({filteredCampuses.length})
         </Text>
 
+        {/* Campus List */}
         <FlatList
           data={filteredCampuses}
           renderItem={renderCampusCard}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
           ListEmptyComponent={
             <View className="p-8 items-center">
-              <Text className="text-gray-400 text-base">Aucun campus trouvé</Text>
+              <Text className="text-body text-ink-tertiary">Aucun campus trouvé</Text>
             </View>
           }
         />
       </View>
 
-      {/* --- CTA ACTIONS --- */}
-      <View className="absolute bottom-0 left-0 right-0 p-5 bg-white border-t border-gray-100 pb-8 rounded-t-3xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      {/* Bottom Actions */}
+      <View
+        style={[
+          shadows.modal,
+          { paddingBottom: Math.max(insets.bottom, 20) },
+        ]}
+        className="absolute bottom-0 left-0 right-0 p-5 bg-surface border-t border-separator-opaque rounded-t-3xl"
+      >
         <View className="flex-row gap-3">
-          {/* Bouton Contacter */}
-          <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center bg-gray-100 py-4 rounded-xl active:opacity-80"
-            onPress={() => Alert.alert('Contact', 'Fonctionnalité à venir')}
-          >
-            <MessageCircle size={20} color="#374151" />
-            <Text className="ml-2 font-semibold text-gray-700">Contacter</Text>
-          </TouchableOpacity>
+          {/* Contact Button */}
+          <View className="flex-1">
+            <Button variant="secondary" fullWidth onPress={handleContact}>
+              <View className="flex-row items-center justify-center gap-2">
+                <MessageCircle size={20} color="#1D1D1F" />
+                <Text className="text-headline text-ink-primary">Contacter</Text>
+              </View>
+            </Button>
+          </View>
 
-          {/* Bouton Transfert */}
-          <TouchableOpacity
-            className={`flex-1 flex-row items-center justify-center py-4 rounded-xl active:opacity-80 ${
-              selectedCampus ? 'bg-blue-600' : 'bg-blue-300'
-            }`}
-            onPress={() => {
-              if (selectedCampus) {
-                Alert.alert('Transfert', 'Fonctionnalité à venir');
-              } else {
-                Alert.alert('Sélection requise', 'Veuillez sélectionner un campus');
-              }
-            }}
-          >
-            <Send size={20} color="white" />
-            <Text className="ml-2 font-semibold text-white">Transfert</Text>
-          </TouchableOpacity>
+          {/* Transfer Button */}
+          <View className="flex-1">
+            <Button
+              variant="primary"
+              fullWidth
+              onPress={handleTransfer}
+              disabled={!selectedCampus}
+            >
+              <View className="flex-row items-center justify-center gap-2">
+                <Send size={20} color="white" />
+                <Text className="text-headline text-white">Transfert</Text>
+              </View>
+            </Button>
+          </View>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

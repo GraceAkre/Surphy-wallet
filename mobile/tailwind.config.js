@@ -4,18 +4,86 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#3B82F6', // Blue-500
-        secondary: '#6B7280', // Gray-500
-        success: '#10B981', // Emerald-500
-        warning: '#F59E0B', // Amber-500
-        error: '#EF4444', // Red-500
-        background: '#F3F4F6', // Gray-100
-        card: '#FFFFFF',
+        background: '#F5F5F7',
+        surface: '#FFFFFF',
+        primary: {
+          DEFAULT: '#3B82F6',
+          50: '#EFF6FF',
+          100: '#DBEAFE',
+          200: '#BFDBFE',
+          500: '#3B82F6',
+          600: '#2563EB',
+          700: '#1D4ED8',
+        },
+        ink: {
+          primary: '#1D1D1F',
+          secondary: '#6E6E73',
+          tertiary: '#86868B',
+          disabled: '#AEAEB2',
+        },
+        success: {
+          DEFAULT: '#34C759',
+          50: '#ECFDF5',
+          100: '#D1FAE5',
+          500: '#34C759',
+          600: '#30B350',
+        },
+        warning: {
+          DEFAULT: '#FF9500',
+          50: '#FFFBEB',
+          100: '#FEF3C7',
+          500: '#FF9500',
+          600: '#E68600',
+        },
+        danger: {
+          DEFAULT: '#FF3B30',
+          50: '#FEF2F2',
+          100: '#FEE2E2',
+          500: '#FF3B30',
+          600: '#E6352B',
+        },
+        separator: {
+          DEFAULT: '#C6C6C8',
+          opaque: '#E5E5EA',
+        },
+        card: {
+          start: '#5B8FD8',
+          end: '#7BB5F5',
+          locked: '#9CA3AF',
+        },
       },
-      fontFamily: {
-        // Ajoute tes polices perso ici si besoin
-      }
+      fontSize: {
+        largeTitle: ['34px', { lineHeight: '41px', fontWeight: '700' }],
+        title1: ['28px', { lineHeight: '34px', fontWeight: '700' }],
+        title2: ['22px', { lineHeight: '28px', fontWeight: '700' }],
+        title3: ['20px', { lineHeight: '25px', fontWeight: '600' }],
+        headline: ['17px', { lineHeight: '22px', fontWeight: '600' }],
+        body: ['17px', { lineHeight: '22px', fontWeight: '400' }],
+        callout: ['16px', { lineHeight: '21px', fontWeight: '400' }],
+        subheadline: ['15px', { lineHeight: '20px', fontWeight: '400' }],
+        footnote: ['13px', { lineHeight: '18px', fontWeight: '400' }],
+        caption1: ['12px', { lineHeight: '16px', fontWeight: '400' }],
+        caption2: ['11px', { lineHeight: '13px', fontWeight: '400' }],
+      },
+      spacing: {
+        screen: '20px',
+        4.5: '18px',
+        13: '52px',
+        15: '60px',
+        18: '72px',
+        22: '88px',
+      },
+      borderRadius: {
+        card: '16px',
+        button: '12px',
+        input: '12px',
+        badge: '8px',
+        chip: '20px',
+        '2xl': '20px',
+        '3xl': '28px',
+        '4xl': '32px',
+      },
     },
   },
   plugins: [],
-}
+};

@@ -4,17 +4,18 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
-  Platform,
   Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
-  ScrollView
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeft, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
+import { shadows } from '../utils/shadows';
+import { useHaptics } from '../hooks/useHaptics';
 
 // --- Types ---
 
@@ -29,11 +30,15 @@ type EmailLoginScreenProps = {
 };
 
 export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) {
+  const { light, success, error: hapticError } = useHaptics();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -51,7 +56,6 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
       return;
     }
 
-    // Vérifier le domaine autorisé
     if (!email.endsWith('@epitech.digital')) {
       Alert.alert(
         'Domaine non autorisé',
@@ -66,23 +70,20 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
     }
 
     setLoading(true);
+    light();
 
     try {
       if (isSignUp) {
-        // Inscription
         const { data, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password: password,
           options: {
-            // Désactiver la confirmation email pour le dev
             emailRedirectTo: undefined,
           },
         });
 
-        console.log('SignUp response:', { data, error });
-
         if (error) {
-          console.error('SignUp Error:', error);
+          hapticError();
           if (error.message.includes('User already registered')) {
             Alert.alert(
               'Compte existant',
@@ -95,9 +96,8 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
           return;
         }
 
-        // Si une session est retournée, l'utilisateur est connecté directement
         if (data.session) {
-          console.log('Session created after signup, navigating to Main');
+          success();
           navigation.reset({
             index: 0,
             routes: [{ name: 'Main' }],
@@ -105,7 +105,6 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
           return;
         }
 
-        // Sinon, confirmation email requise
         if (data.user && !data.session) {
           Alert.alert(
             'Vérifiez votre email',
@@ -114,16 +113,13 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
           );
         }
       } else {
-        // Connexion
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim().toLowerCase(),
           password: password,
         });
 
-        console.log('SignIn response:', { data, error });
-
         if (error) {
-          console.error('SignIn Error:', error);
+          hapticError();
           if (error.message.includes('Invalid login credentials')) {
             Alert.alert('Erreur', 'Email ou mot de passe incorrect.');
           } else if (error.message.includes('Email not confirmed')) {
@@ -135,19 +131,18 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
         }
 
         if (data.session) {
-          console.log('Session created, navigating to Main');
-          // Succès - naviguer vers Main
+          success();
           navigation.reset({
             index: 0,
             routes: [{ name: 'Main' }],
           });
         } else {
-          console.error('No session returned');
+          hapticError();
           Alert.alert('Erreur', 'Connexion échouée. Veuillez réessayer.');
         }
       }
-    } catch (error) {
-      console.error('Auth Error:', error);
+    } catch (err) {
+      hapticError();
       Alert.alert('Erreur', 'Une erreur est survenue. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -155,85 +150,107 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView className="flex-1 bg-background">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+        className="flex-1"
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View className="px-4 py-3">
             <Pressable
               onPress={() => navigation.goBack()}
-              style={styles.backButton}
+              className="w-11 h-11 rounded-full bg-surface items-center justify-center border border-separator-opaque"
+              style={shadows.soft}
             >
-              <ChevronLeft size={24} color="#111827" />
+              <ChevronLeft size={24} color="#1D1D1F" />
             </Pressable>
           </View>
 
           {/* Content */}
-          <View style={styles.content}>
-            <View style={styles.iconContainer}>
+          <View className="flex-1 px-6 pt-6">
+            {/* Icon */}
+            <View className="w-16 h-16 rounded-card bg-primary-50 items-center justify-center mb-6">
               <Mail size={32} color="#3B82F6" />
             </View>
 
-            <Text style={styles.title}>
+            {/* Title */}
+            <Text className="text-title1 text-ink-primary mb-2">
               {isSignUp ? 'Créer un compte' : 'Connexion'}
             </Text>
-            <Text style={styles.subtitle}>
+            <Text className="text-body text-ink-secondary leading-relaxed mb-8">
               {isSignUp
                 ? 'Créez votre compte avec votre adresse @epitech.digital'
                 : 'Connectez-vous avec votre adresse @epitech.digital'}
             </Text>
 
             {/* Email Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Adresse email</Text>
-              <View style={styles.inputWrapper}>
-                <Mail size={20} color="#9CA3AF" style={styles.inputIcon} />
+            <View className="mb-4">
+              <Text className="text-footnote font-semibold text-ink-primary mb-2">
+                Adresse email
+              </Text>
+              <View
+                className={`flex-row items-center bg-surface border rounded-input px-4 ${
+                  emailFocused ? 'border-primary' : 'border-separator-opaque'
+                }`}
+                style={emailFocused ? shadows.soft : undefined}
+              >
+                <Mail size={20} color="#86868B" style={{ marginRight: 12 }} />
                 <TextInput
-                  style={styles.input}
+                  className="flex-1 py-3.5 text-body text-ink-primary"
                   placeholder="prenom.nom@epitech.digital"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="#86868B"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="email"
                   value={email}
                   onChangeText={setEmail}
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
                   editable={!loading}
                 />
               </View>
             </View>
 
             {/* Password Input */}
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>Mot de passe</Text>
-              <View style={styles.inputWrapper}>
-                <Lock size={20} color="#9CA3AF" style={styles.inputIcon} />
+            <View className="mb-6">
+              <Text className="text-footnote font-semibold text-ink-primary mb-2">
+                Mot de passe
+              </Text>
+              <View
+                className={`flex-row items-center bg-surface border rounded-input px-4 ${
+                  passwordFocused ? 'border-primary' : 'border-separator-opaque'
+                }`}
+                style={passwordFocused ? shadows.soft : undefined}
+              >
+                <Lock size={20} color="#86868B" style={{ marginRight: 12 }} />
                 <TextInput
-                  style={styles.input}
+                  className="flex-1 py-3.5 text-body text-ink-primary"
                   placeholder="••••••••"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="#86868B"
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="password"
                   value={password}
                   onChangeText={setPassword}
+                  onFocus={() => setPasswordFocused(true)}
+                  onBlur={() => setPasswordFocused(false)}
                   editable={!loading}
                 />
                 <Pressable
                   onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
+                  className="p-2 -mr-2"
                 >
                   {showPassword ? (
-                    <EyeOff size={20} color="#9CA3AF" />
+                    <EyeOff size={20} color="#86868B" />
                   ) : (
-                    <Eye size={20} color="#9CA3AF" />
+                    <Eye size={20} color="#86868B" />
                   )}
                 </Pressable>
               </View>
@@ -244,15 +261,19 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
               onPress={handleAuth}
               disabled={loading}
               style={({ pressed }) => [
-                styles.submitButton,
-                { opacity: pressed || loading ? 0.8 : 1 }
+                shadows.primaryButton,
+                {
+                  transform: [{ scale: pressed && !loading ? 0.98 : 1 }],
+                  opacity: loading ? 0.8 : 1,
+                },
               ]}
+              className="flex-row items-center justify-center bg-primary py-4 rounded-button gap-2"
             >
               {loading ? (
                 <ActivityIndicator color="white" />
               ) : (
                 <>
-                  <Text style={styles.submitButtonText}>
+                  <Text className="text-headline text-white">
                     {isSignUp ? "S'inscrire" : 'Se connecter'}
                   </Text>
                   <ArrowRight size={20} color="white" />
@@ -261,12 +282,12 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
             </Pressable>
 
             {/* Toggle Sign Up / Sign In */}
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleText}>
+            <View className="flex-row items-center justify-center mt-6 gap-1">
+              <Text className="text-subheadline text-ink-secondary">
                 {isSignUp ? 'Déjà un compte ?' : "Pas encore de compte ?"}
               </Text>
               <Pressable onPress={() => setIsSignUp(!isSignUp)}>
-                <Text style={styles.toggleLink}>
+                <Text className="text-subheadline text-primary font-semibold">
                   {isSignUp ? 'Se connecter' : "S'inscrire"}
                 </Text>
               </Pressable>
@@ -277,128 +298,3 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-  },
-  iconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-  },
-  inputIcon: {
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
-  },
-  eyeButton: {
-    padding: 8,
-  },
-  submitButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B82F6',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-    marginTop: 8,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#3B82F6',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: 'white',
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-    gap: 4,
-  },
-  toggleText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  toggleLink: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-});

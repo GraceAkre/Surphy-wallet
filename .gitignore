@@ -160,4 +160,5 @@ temp/
 
 # Documentation générée
 docs/_build/
+docs/screens/
 site/
