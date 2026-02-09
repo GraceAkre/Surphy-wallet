@@ -46,6 +46,7 @@ const FILTER_OPTIONS = [
   { id: 'approved', label: 'Validées' },
   { id: 'flagged', label: 'En revue' },
   { id: 'blocked', label: 'Bloquées' },
+  { id: 'declined', label: 'Refusées' },
 ];
 
 export default function HistoryScreen({ navigation }: HistoryScreenProps) {
@@ -218,15 +219,21 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
         showsVerticalScrollIndicator={false}
       >
         <View className="px-screen">
-          <TransactionList
-            transactions={filteredTransactions}
-            onTransactionPress={handleTransactionPress}
-            emptyMessage="Aucune transaction trouvée"
-          />
+          {activeFilter !== 'declined' ? (
+            <TransactionList
+              transactions={filteredTransactions}
+              onTransactionPress={handleTransactionPress}
+              emptyMessage="Aucune transaction trouvée"
+            />
+          ) : declinedRequests.length === 0 ? (
+            <Text className="text-body text-ink-secondary text-center mt-8">
+              Aucune demande refusée
+            </Text>
+          ) : null}
         </View>
 
         {/* Declined Money Requests */}
-        {activeFilter === 'all' && declinedRequests.length > 0 && (
+        {(activeFilter === 'all' || activeFilter === 'declined') && declinedRequests.length > 0 && (
           <View className="px-screen mt-4">
             <Text className="text-subheadline text-ink-secondary mb-3 ml-1">
               Demandes refusées

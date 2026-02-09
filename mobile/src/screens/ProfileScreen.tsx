@@ -6,6 +6,7 @@ import {
   Pressable,
   Switch,
   Alert,
+  Share,
   ActivityIndicator,
   RefreshControl,
   Modal,
@@ -24,11 +25,13 @@ import {
   MapPin,
   Check,
   X,
+  Download,
+  Trash2,
   LucideIcon,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, updateUserProfile } from '../lib/api';
+import { getCurrentUser, updateUserProfile, exportMyData, deleteMyAccount } from '../lib/api';
 import type { User as UserType } from '../lib/types';
 
 // Components
@@ -58,6 +61,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const [user, setUser] = useState<UserType | null>(null);
 
   const [campusModalVisible, setCampusModalVisible] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const [notifSettings, setNotifSettings] = useState({
     suspicious: true,
@@ -170,6 +174,85 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
       Alert.alert('Erreur', result.errorMessage || 'Impossible de changer le campus');
     }
     setCampusModalVisible(false);
+  };
+
+  const handleDownloadData = () => {
+    Alert.alert(
+      'Télécharger mes données',
+      'Vos données personnelles seront exportées au format JSON.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Télécharger',
+          onPress: async () => {
+            setExporting(true);
+            try {
+              const result = await exportMyData();
+              if (!result.success || !result.data) {
+                Alert.alert('Erreur', result.errorMessage || "Impossible d'exporter les données");
+                return;
+              }
+
+              const jsonString = JSON.stringify(result.data, null, 2);
+              await Share.share({
+                message: jsonString,
+                title: 'Mes données Surphy',
+              });
+            } catch (error) {
+              console.error('Error exporting data:', error);
+              Alert.alert('Erreur', "Une erreur est survenue lors de l'export");
+            } finally {
+              setExporting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Supprimer mon compte',
+      'Cette action est irréversible. Toutes vos données seront définitivement supprimées.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Confirmer la suppression',
+              'Êtes-vous vraiment sûr(e) ? Cette action ne peut pas être annulée.',
+              [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                  text: 'Supprimer définitivement',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const result = await deleteMyAccount();
+                      if (!result.success) {
+                        Alert.alert('Erreur', result.errorMessage || 'Impossible de supprimer le compte');
+                        return;
+                      }
+
+                      await supabase.auth.signOut();
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Onboarding' }],
+                      });
+                    } catch (error) {
+                      console.error('Error deleting account:', error);
+                      Alert.alert('Erreur', 'Une erreur est survenue lors de la suppression');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
   };
 
   // --- Components ---
@@ -387,6 +470,17 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             icon={Lock}
             label="Changer de mot de passe"
             onPress={handleChangePassword}
+          />
+          <MenuItem
+            icon={Download}
+            label={exporting ? 'Export en cours…' : 'Télécharger mes données'}
+            onPress={handleDownloadData}
+          />
+          <MenuItem
+            icon={Trash2}
+            label="Supprimer mon compte"
+            isDanger
+            onPress={handleDeleteAccount}
           />
           <MenuItem
             icon={LogOut}

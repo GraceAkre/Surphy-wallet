@@ -755,3 +755,71 @@ CREATE TRIGGER update_money_requests_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 COMMENT ON TABLE money_requests IS 'Demandes d argent entre utilisateurs';
+
+-- =============================================================================
+-- FONCTIONS RGPD
+-- =============================================================================
+
+-- Fonction: Export de toutes les données personnelles (RGPD)
+-- Retourne un objet JSONB contenant toutes les données de l'utilisateur courant
+CREATE OR REPLACE FUNCTION export_my_data()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+    v_result JSONB;
+BEGIN
+    SELECT jsonb_build_object(
+        'user', (SELECT row_to_json(u) FROM users u WHERE u.id = v_user_id),
+        'wallets', COALESCE((SELECT jsonb_agg(row_to_json(w)) FROM wallets w WHERE w.user_id = v_user_id), '[]'::jsonb),
+        'transactions', COALESCE((SELECT jsonb_agg(row_to_json(t)) FROM transactions t WHERE t.user_id = v_user_id), '[]'::jsonb),
+        'money_requests_sent', COALESCE((SELECT jsonb_agg(row_to_json(mr)) FROM money_requests mr WHERE mr.requester_id = v_user_id), '[]'::jsonb),
+        'money_requests_received', COALESCE((SELECT jsonb_agg(row_to_json(mr)) FROM money_requests mr WHERE mr.target_id = v_user_id), '[]'::jsonb),
+        'audit_log', COALESCE((SELECT jsonb_agg(row_to_json(al)) FROM audit_log al WHERE al.user_id = v_user_id), '[]'::jsonb)
+    ) INTO v_result;
+
+    RETURN v_result;
+END;
+$$;
+
+-- Fonction: Suppression complète du compte (RGPD)
+-- Supprime toutes les données de l'utilisateur courant dans l'ordre des FK
+CREATE OR REPLACE FUNCTION delete_my_account()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_user_id UUID := auth.uid();
+BEGIN
+    -- 1. Anonymiser l'audit_log (conserver les entrées, effacer le lien utilisateur)
+    UPDATE audit_log SET user_id = NULL WHERE user_id = v_user_id;
+
+    -- 2. Supprimer les labels créés par l'utilisateur
+    DELETE FROM labels WHERE analyst_id = v_user_id;
+
+    -- 3. Supprimer les demandes d'argent (envoyées et reçues)
+    DELETE FROM money_requests WHERE requester_id = v_user_id OR target_id = v_user_id;
+
+    -- 4. Supprimer les transactions
+    DELETE FROM transactions WHERE user_id = v_user_id;
+
+    -- 5. Supprimer les wallets
+    DELETE FROM wallets WHERE user_id = v_user_id;
+
+    -- 6. Supprimer le profil utilisateur
+    DELETE FROM users WHERE id = v_user_id;
+
+    -- 7. Supprimer le compte auth
+    DELETE FROM auth.users WHERE id = v_user_id;
+
+    RETURN jsonb_build_object('success', true, 'error_message', NULL);
+
+EXCEPTION WHEN OTHERS THEN
+    RETURN jsonb_build_object('success', false, 'error_message', SQLERRM);
+END;
+$$;
