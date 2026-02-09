@@ -8,8 +8,9 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Search, Filter } from 'lucide-react-native';
+import { Search, Filter, XCircle } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 
 // Components
 import { Card, Badge } from '../components/ui';
@@ -17,7 +18,7 @@ import { TransactionList } from '../components/transaction';
 
 // Utils
 import { shadows } from '../utils/shadows';
-import { formatCurrency } from '../utils/formatters';
+import { formatCurrency, formatDate } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
@@ -25,8 +26,9 @@ import {
   getCurrentUser,
   getUserTransactions,
   getMonthlyStats,
+  getMoneyRequestsForUser,
 } from '../lib/api';
-import type { User, Transaction } from '../lib/types';
+import type { User, Transaction, MoneyRequest } from '../lib/types';
 
 // --- Types ---
 
@@ -58,6 +60,7 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [monthlyStats, setMonthlyStats] = useState({ expenses: 0, income: 0, balance: 0 });
+  const [declinedRequests, setDeclinedRequests] = useState<MoneyRequest[]>([]);
 
   // Fetch data
   const fetchData = useCallback(async () => {
@@ -69,13 +72,15 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
       }
       setUser(currentUser);
 
-      const [userTransactions, stats] = await Promise.all([
+      const [userTransactions, stats, declinedReqs] = await Promise.all([
         getUserTransactions(currentUser.id),
         getMonthlyStats(currentUser.id),
+        getMoneyRequestsForUser(currentUser.id, 'declined'),
       ]);
 
       setTransactions(userTransactions);
       setMonthlyStats(stats);
+      setDeclinedRequests(declinedReqs);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -83,9 +88,11 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
     }
   }, []);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   // Filtered transactions
   const filteredTransactions = useMemo(() => {
@@ -217,6 +224,48 @@ export default function HistoryScreen({ navigation }: HistoryScreenProps) {
             emptyMessage="Aucune transaction trouvée"
           />
         </View>
+
+        {/* Declined Money Requests */}
+        {activeFilter === 'all' && declinedRequests.length > 0 && (
+          <View className="px-screen mt-4">
+            <Text className="text-subheadline text-ink-secondary mb-3 ml-1">
+              Demandes refusées
+            </Text>
+            <View
+              className="bg-surface rounded-2xl border border-separator-opaque/50 overflow-hidden"
+              style={shadows.card}
+            >
+              {declinedRequests.map((req, index) => (
+                <View
+                  key={req.id}
+                  className={`flex-row items-center px-4 py-3.5 ${
+                    index < declinedRequests.length - 1 ? 'border-b border-separator-opaque/50' : ''
+                  }`}
+                >
+                  <View className="w-12 h-12 rounded-full items-center justify-center mr-3" style={{ backgroundColor: '#FEE2E2' }}>
+                    <XCircle size={20} color="#EF4444" />
+                  </View>
+                  <View className="flex-1 gap-0.5">
+                    <Text className="text-subheadline font-semibold text-ink-primary">
+                      Demande refusée
+                    </Text>
+                    <Text className="text-footnote text-ink-tertiary">
+                      {req.requester_name} — {formatDate(req.updated_at)}
+                    </Text>
+                  </View>
+                  <View className="items-end gap-1">
+                    <Text className="text-subheadline font-bold text-ink-tertiary">
+                      {formatCurrency(req.amount)}
+                    </Text>
+                    <View className="bg-red-100 rounded-full px-2 py-0.5">
+                      <Text className="text-caption2 font-semibold" style={{ color: '#EF4444', fontSize: 10 }}>REFUSÉE</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Monthly Summary */}
         <Card variant="outlined" padding="md" className="mx-screen mt-4">

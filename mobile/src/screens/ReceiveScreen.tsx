@@ -17,11 +17,9 @@ import {
   ChevronLeft,
   User,
   ChevronRight,
-  ShieldCheck,
+  ArrowDownLeft,
   X,
   Search,
-  ArrowDownLeft,
-  Check,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -35,19 +33,18 @@ import { formatCurrency, formatAmountInput } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
-import { getAllUsers, getCurrentUser, getUserWallet, transferFunds, getMoneyRequestsForUser, acceptMoneyRequest, declineMoneyRequest } from '../lib/api';
-import type { User as UserType, MoneyRequest } from '../lib/types';
+import { getAllUsers, getCurrentUser, createMoneyRequest } from '../lib/api';
+import type { User as UserType } from '../lib/types';
 
 // --- Types ---
 
 type RootStackParamList = {
   Home: undefined;
-  CardPayment: undefined;
-  TransferSuccess: { amount: string; recipient: string; transactionId: string };
+  Receive: undefined;
 };
 
-type CardPaymentScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'CardPayment'>;
+type ReceiveScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'Receive'>;
 };
 
 type SelectedRecipient = {
@@ -56,13 +53,12 @@ type SelectedRecipient = {
   email: string;
 };
 
-export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps) {
+export default function ReceiveScreen({ navigation }: ReceiveScreenProps) {
   const { light, success } = useHaptics();
 
   const [amount, setAmount] = useState('');
   const [recipient, setRecipient] = useState<SelectedRecipient | null>(null);
-  const [balance, setBalance] = useState(0);
-  const [walletId, setWalletId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
@@ -71,33 +67,13 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   const [searchQuery, setSearchQuery] = useState('');
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Money request popup state
-  const [pendingRequests, setPendingRequests] = useState<MoneyRequest[]>([]);
-  const [requestPopupVisible, setRequestPopupVisible] = useState(false);
-  const [currentRequest, setCurrentRequest] = useState<MoneyRequest | null>(null);
-  const [requestLoading, setRequestLoading] = useState(false);
-
-  // Fetch current user, wallet and pending requests on mount
+  // Fetch current user on mount
   useEffect(() => {
     async function loadData() {
       const user = await getCurrentUser();
       if (user) {
         setCurrentUserId(user.id);
-        const [wallet, requests] = await Promise.all([
-          getUserWallet(user.id),
-          getMoneyRequestsForUser(user.id),
-        ]);
-        if (wallet) {
-          setBalance(wallet.balance);
-          setWalletId(wallet.id);
-        }
-        if (requests.length > 0) {
-          setPendingRequests(requests);
-          setCurrentRequest(requests[0]);
-          setRequestPopupVisible(true);
-        }
       }
     }
     loadData();
@@ -127,7 +103,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
 
   // Validation
   const numericAmount = parseFloat(amount.replace(',', '.'));
-  const isValidAmount = !isNaN(numericAmount) && numericAmount > 0 && numericAmount <= balance;
+  const isValidAmount = !isNaN(numericAmount) && numericAmount > 0;
   const isValid = recipient !== null && isValidAmount;
 
   // Handlers
@@ -157,82 +133,28 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   };
 
   const handleSend = async () => {
-    if (!isValid || !walletId || !recipient) return;
+    if (!isValid || !currentUserId || !recipient) return;
 
     setIsLoading(true);
     light();
 
     try {
-      const result = await transferFunds(walletId, recipient.id, numericAmount);
+      const result = await createMoneyRequest(currentUserId, recipient.id, numericAmount);
 
-      if (result.success && result.transactionId) {
+      if (result.success) {
         success();
-        navigation.navigate('TransferSuccess', {
-          amount: amount,
-          recipient: recipient.name,
-          transactionId: result.transactionId,
-        });
+        Alert.alert(
+          'Demande envoyée',
+          `Votre demande de ${amount} € a été envoyée à ${recipient.name}.`,
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
+        );
       } else {
-        Alert.alert('Échec du virement', result.errorMessage || 'Une erreur est survenue.');
+        Alert.alert('Erreur', result.errorMessage || 'Une erreur est survenue.');
       }
     } catch (err) {
       Alert.alert('Erreur', 'Impossible de contacter le serveur. Réessayez.');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleAcceptRequest = async () => {
-    if (!currentRequest || !walletId) return;
-    setRequestLoading(true);
-    try {
-      const result = await acceptMoneyRequest(
-        currentRequest.id,
-        walletId,
-        currentRequest.requester_id,
-        currentRequest.amount
-      );
-      if (result.success) {
-        success();
-        Alert.alert('Virement effectué', `${formatCurrency(currentRequest.amount)} envoyé à ${currentRequest.requester_name}.`);
-        // Refresh balance
-        if (currentUserId) {
-          const wallet = await getUserWallet(currentUserId);
-          if (wallet) setBalance(wallet.balance);
-        }
-      } else {
-        Alert.alert('Erreur', result.errorMessage || 'Impossible d\'effectuer le virement.');
-      }
-    } catch {
-      Alert.alert('Erreur', 'Impossible de contacter le serveur.');
-    } finally {
-      setRequestLoading(false);
-      showNextRequest();
-    }
-  };
-
-  const handleDeclineRequest = async () => {
-    if (!currentRequest) return;
-    setRequestLoading(true);
-    try {
-      await declineMoneyRequest(currentRequest.id);
-      light();
-    } catch {
-      // Silently handle
-    } finally {
-      setRequestLoading(false);
-      showNextRequest();
-    }
-  };
-
-  const showNextRequest = () => {
-    const remaining = pendingRequests.filter((r) => r.id !== currentRequest?.id);
-    setPendingRequests(remaining);
-    if (remaining.length > 0) {
-      setCurrentRequest(remaining[0]);
-    } else {
-      setCurrentRequest(null);
-      setRequestPopupVisible(false);
     }
   };
 
@@ -262,10 +184,10 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
           <ChevronLeft color="#1D1D1F" size={28} />
         </Pressable>
         <Text className="text-largeTitle text-ink-primary">
-          Faire un virement
+          Demander un virement
         </Text>
         <Text className="text-subheadline text-ink-secondary mt-2">
-          Envoyez de l'argent entre étudiants en toute sécurité.
+          Demandez de l'argent à un autre étudiant.
         </Text>
       </View>
 
@@ -279,19 +201,9 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Balance Card */}
-          <Card variant="elevated" padding="lg" className="mb-6 mt-4">
-            <Text className="text-footnote text-ink-tertiary mb-2">
-              Solde disponible
-            </Text>
-            <Text className="text-largeTitle text-ink-primary">
-              {formatCurrency(balance)}
-            </Text>
-          </Card>
-
           {/* Recipient Selector */}
-          <Text className="text-headline text-ink-secondary mb-4 ml-1">
-            Destinataire
+          <Text className="text-headline text-ink-secondary mb-4 ml-1 mt-4">
+            Demander à
           </Text>
 
           <Pressable
@@ -341,14 +253,14 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
           {/* Amount Card */}
           <Card variant="elevated" padding="lg" className="mb-6">
             <Text className="text-headline text-ink-primary mb-4">
-              Montant à transférer
+              Montant à demander
             </Text>
 
             {/* Input */}
             <View
               className={`
                 flex-row items-center bg-surface rounded-input px-5 py-4 border-2 mb-2
-                ${isFocused ? 'border-primary' : amount && !isValidAmount ? 'border-danger' : 'border-separator-opaque'}
+                ${isFocused ? 'border-primary' : 'border-separator-opaque'}
               `}
               style={isFocused ? shadows.soft : undefined}
             >
@@ -367,15 +279,8 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
               />
             </View>
 
-            {/* Error */}
-            {amount && !isValidAmount && (
-              <Text className="text-footnote text-danger font-medium ml-1 mt-1">
-                Solde insuffisant ({formatCurrency(balance)} max)
-              </Text>
-            )}
-
             <Text className="text-footnote text-ink-tertiary mt-4 leading-5">
-              Les virements sont instantanés et gratuits entre membres du campus.
+              Le destinataire recevra une notification avec votre demande.
             </Text>
 
             {/* Send Button */}
@@ -398,109 +303,26 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
                 <ActivityIndicator color="white" />
               ) : (
                 <Text className="text-headline text-white">
-                  Envoyer {amount ? `${amount} €` : ''}
+                  Envoyer la demande {amount ? `de ${amount} €` : ''}
                 </Text>
               )}
             </Pressable>
           </Card>
 
-          {/* Security Badge */}
+          {/* Info Badge */}
           <View className="bg-surface rounded-card p-4 border border-separator-opaque flex-row items-center gap-3">
-            <View className="w-10 h-10 bg-primary-50 rounded-button items-center justify-center">
-              <ShieldCheck size={24} color="#3B82F6" />
+            <View className="w-10 h-10 bg-blue-50 rounded-button items-center justify-center">
+              <ArrowDownLeft size={24} color="#3B82F6" />
             </View>
             <View className="flex-1">
-              <Text className="text-headline text-ink-primary">Paiement sécurisé</Text>
+              <Text className="text-headline text-ink-primary">Demande de virement</Text>
               <Text className="text-footnote text-ink-tertiary">
-                Cryptage SSL 256-bit de bout en bout.
+                L'autre utilisateur sera notifié de votre demande.
               </Text>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Money Request Popup */}
-      <Modal
-        visible={requestPopupVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setRequestPopupVisible(false)}
-      >
-        <View className="flex-1 justify-center items-center" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <View className="bg-white rounded-3xl mx-6 p-6 w-full max-w-sm" style={shadows.card}>
-            {/* Icon */}
-            <View className="items-center mb-4">
-              <View className="w-16 h-16 bg-blue-50 rounded-full items-center justify-center mb-3">
-                <ArrowDownLeft size={32} color="#3B82F6" />
-              </View>
-              <Text className="text-title3 text-ink-primary font-bold text-center">
-                Demande de virement
-              </Text>
-            </View>
-
-            {currentRequest && (
-              <>
-                <View className="bg-background rounded-2xl p-4 mb-4">
-                  <Text className="text-body text-ink-secondary text-center leading-6">
-                    <Text className="font-bold text-ink-primary">
-                      {currentRequest.requester_name}
-                    </Text>
-                    {' '}vous demande
-                  </Text>
-                  <Text className="text-largeTitle text-primary font-bold text-center mt-2">
-                    {formatCurrency(currentRequest.amount)}
-                  </Text>
-                  {currentRequest.message && (
-                    <Text className="text-footnote text-ink-tertiary text-center mt-2 italic">
-                      "{currentRequest.message}"
-                    </Text>
-                  )}
-                </View>
-
-                {/* Buttons */}
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={handleDeclineRequest}
-                    disabled={requestLoading}
-                    style={({ pressed }) => [
-                      { flex: 1, transform: [{ scale: pressed ? 0.96 : 1 }], opacity: requestLoading ? 0.5 : 1 },
-                    ]}
-                    className="bg-red-50 border-2 border-red-200 rounded-button py-3.5 items-center justify-center flex-row"
-                  >
-                    <X size={18} color="#EF4444" style={{ marginRight: 6 }} />
-                    <Text className="text-headline" style={{ color: '#EF4444' }}>Refuser</Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={handleAcceptRequest}
-                    disabled={requestLoading}
-                    style={({ pressed }) => [
-                      shadows.primaryButton,
-                      { flex: 1, transform: [{ scale: pressed ? 0.96 : 1 }], opacity: requestLoading ? 0.5 : 1 },
-                    ]}
-                    className="bg-green-500 rounded-button py-3.5 items-center justify-center flex-row"
-                  >
-                    {requestLoading ? (
-                      <ActivityIndicator color="white" size="small" />
-                    ) : (
-                      <>
-                        <Check size={18} color="white" style={{ marginRight: 6 }} />
-                        <Text className="text-headline text-white">Accepter</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-
-                {pendingRequests.length > 1 && (
-                  <Text className="text-caption1 text-ink-tertiary text-center mt-3">
-                    {pendingRequests.length - 1} autre{pendingRequests.length > 2 ? 's' : ''} demande{pendingRequests.length > 2 ? 's' : ''} en attente
-                  </Text>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Recipient Selection Modal */}
       <Modal

@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -20,11 +21,14 @@ import {
   FileText,
   HelpCircle,
   Shield,
+  MapPin,
+  Check,
+  X,
   LucideIcon,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../lib/api';
+import { getCurrentUser, updateUserProfile } from '../lib/api';
 import type { User as UserType } from '../lib/types';
 
 // Components
@@ -52,6 +56,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState<UserType | null>(null);
+
+  const [campusModalVisible, setCampusModalVisible] = useState(false);
 
   const [notifSettings, setNotifSettings] = useState({
     suspicious: true,
@@ -149,6 +155,21 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         },
       ]
     );
+  };
+
+  const handleCampusSelect = async (campus: string) => {
+    if (!user || campus === user.campus) {
+      setCampusModalVisible(false);
+      return;
+    }
+
+    const result = await updateUserProfile(user.id, { campus });
+    if (result.success) {
+      setUser({ ...user, campus });
+    } else {
+      Alert.alert('Erreur', result.errorMessage || 'Impossible de changer le campus');
+    }
+    setCampusModalVisible(false);
   };
 
   // --- Components ---
@@ -297,7 +318,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           <View className="mb-4 relative">
             <Avatar
               size="xl"
-              name={user.full_name}
+              name={`${user.firstname ?? ''} ${user.lastname ?? ''}`.trim()}
             />
             {/* Campus Badge */}
             <View className="absolute -bottom-0 -right-0 bg-primary-600 w-8 h-8 rounded-lg border-2 border-white items-center justify-center">
@@ -308,7 +329,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           </View>
 
           <Text className="text-title1 text-ink-primary mb-1">
-            {user.full_name || 'Utilisateur'}
+            {`${user.firstname ?? ''} ${user.lastname ?? ''}`.trim() || 'Utilisateur'}
           </Text>
           <Text className="text-subheadline text-ink-secondary mb-4">
             {user.email}
@@ -343,9 +364,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             icon={Building}
             label="Campus"
             value={user.campus || 'Non défini'}
-            onPress={() =>
-              Alert.alert('Campus', `Votre campus : ${user.campus || 'Non défini'}`)
-            }
+            onPress={() => setCampusModalVisible(true)}
           />
           <MenuItem
             icon={User}
@@ -411,6 +430,72 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           Version 1.0.0 (Build 24)
         </Text>
       </ScrollView>
+
+      {/* Campus Selection Modal */}
+      <Modal
+        visible={campusModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setCampusModalVisible(false)}
+      >
+        <SafeAreaView className="flex-1 bg-background">
+          <View className="flex-row items-center justify-between px-screen py-4 border-b border-separator-opaque/50">
+            <Text className="text-title2 text-ink-primary font-semibold">
+              Changer de campus
+            </Text>
+            <Pressable
+              onPress={() => setCampusModalVisible(false)}
+              className="w-8 h-8 items-center justify-center rounded-full bg-gray-100"
+            >
+              <X size={18} color="#6E6E73" />
+            </Pressable>
+          </View>
+
+          <View className="px-screen pt-6">
+            {['Paris', 'Lyon', 'Bordeaux'].map((campus, index) => {
+              const isSelected = user.campus === campus;
+              return (
+                <Pressable
+                  key={campus}
+                  onPress={() => {
+                    light();
+                    handleCampusSelect(campus);
+                  }}
+                  style={({ pressed }) => [
+                    { backgroundColor: pressed ? '#F9FAFB' : isSelected ? '#EFF6FF' : 'white' },
+                    shadows.card,
+                  ]}
+                  className={`
+                    flex-row items-center justify-between px-4 py-4 rounded-xl
+                    ${index < 2 ? 'mb-3' : ''}
+                    ${isSelected ? 'border border-primary' : 'border border-separator-opaque/50'}
+                  `}
+                >
+                  <View className="flex-row items-center gap-3">
+                    <View className={`w-10 h-10 rounded-xl items-center justify-center ${isSelected ? 'bg-primary' : 'bg-gray-100'}`}>
+                      <MapPin size={20} color={isSelected ? '#FFFFFF' : '#6E6E73'} />
+                    </View>
+                    <View>
+                      <Text className={`text-body font-medium ${isSelected ? 'text-primary' : 'text-ink-primary'}`}>
+                        {campus}
+                      </Text>
+                      <Text className="text-caption1 text-ink-secondary">
+                        Epitech {campus}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {isSelected && (
+                    <View className="w-6 h-6 rounded-full bg-primary items-center justify-center">
+                      <Check size={14} color="#FFFFFF" strokeWidth={3} />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }

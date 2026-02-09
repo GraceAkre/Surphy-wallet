@@ -19,6 +19,10 @@ import VerificationScreen from './screens/VerificationScreen';
 import CardPaymentScreen from './screens/CardPaymentScreen';
 import RiskGaugeScreen from './screens/RiskGaugeScreen';
 import InteroperabilityScreen from './screens/InteroperabilityScreen';
+import TransferSuccessScreen from './screens/TransferSuccessScreen';
+import TransactionDetailScreen from './screens/TransactionDetailScreen';
+import NotificationsScreen from './screens/NotificationsScreen';
+import ReceiveScreen from './screens/ReceiveScreen';
 
 // --- Définition des Types de Navigation ---
 
@@ -33,8 +37,13 @@ export type RootStackParamList = {
 
   // Écrans Fonctionnels
   CardPayment: undefined;
+  Receive: undefined;
   TransactionDetail: { id: string };
+  Notifications: undefined;
   Interoperability: undefined;
+
+  // Flux de Virement
+  TransferSuccess: { amount: string; recipient: string; transactionId: string };
 
   // Flux de Sécurité
   Verification: { transactionId: string };
@@ -177,6 +186,10 @@ export default function App() {
             }}
           >
             <Stack.Screen name="CardPayment" component={CardPaymentScreen} />
+            <Stack.Screen name="Receive" component={ReceiveScreen} />
+            <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            <Stack.Screen name="TransferSuccess" component={TransferSuccessScreen} />
             <Stack.Screen name="RiskGauge" component={RiskGaugeScreen} />
             <Stack.Screen name="Interoperability" component={InteroperabilityScreen} />
           </Stack.Group>

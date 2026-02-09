@@ -376,6 +376,108 @@ BEGIN
 END;
 $$;
 
+-- Fonction: Virement atomique entre deux wallets
+-- Accepte p_to_user_id (pas wallet_id) car RLS empêche le client de lire le wallet d'un autre user
+CREATE OR REPLACE FUNCTION transfer_funds(
+    p_from_wallet_id UUID,
+    p_to_user_id UUID,
+    p_amount NUMERIC,
+    p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_from_wallet RECORD;
+    v_to_wallet RECORD;
+    v_tx_id UUID;
+BEGIN
+    -- 0. Résoudre le wallet actif du destinataire à partir de son user_id
+    SELECT * INTO v_to_wallet FROM wallets
+    WHERE user_id = p_to_user_id AND status = 'active'
+    LIMIT 1;
+
+    IF v_to_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Wallet du destinataire introuvable');
+    END IF;
+
+    -- 1. Verrouiller les deux wallets dans un ordre déterministe (évite deadlock)
+    IF p_from_wallet_id < v_to_wallet.id THEN
+        SELECT * INTO v_from_wallet FROM wallets WHERE id = p_from_wallet_id FOR UPDATE;
+        SELECT * INTO v_to_wallet FROM wallets WHERE id = v_to_wallet.id FOR UPDATE;
+    ELSE
+        SELECT * INTO v_to_wallet FROM wallets WHERE id = v_to_wallet.id FOR UPDATE;
+        SELECT * INTO v_from_wallet FROM wallets WHERE id = p_from_wallet_id FOR UPDATE;
+    END IF;
+
+    -- 2. Vérifier que le wallet expéditeur existe
+    IF v_from_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Wallet expéditeur introuvable');
+    END IF;
+
+    -- 3. Vérifier que les wallets sont actifs
+    IF v_from_wallet.status != 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Votre wallet est inactif');
+    END IF;
+    IF v_to_wallet.status != 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Le wallet du destinataire est inactif');
+    END IF;
+
+    -- 4. Vérifier le solde suffisant
+    IF v_from_wallet.balance < p_amount THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Solde insuffisant');
+    END IF;
+
+    -- 5. Débiter l'expéditeur
+    UPDATE wallets SET balance = balance - p_amount WHERE id = p_from_wallet_id;
+
+    -- 6. Créditer le destinataire
+    UPDATE wallets SET balance = balance + p_amount WHERE id = v_to_wallet.id;
+
+    -- 7. Insérer la transaction outgoing (expéditeur)
+    v_tx_id := uuid_generate_v4();
+    INSERT INTO transactions (
+        id, user_id, wallet_id, provider, amount, currency,
+        transaction_type, direction, status, request_id
+    ) VALUES (
+        v_tx_id,
+        v_from_wallet.user_id,
+        p_from_wallet_id,
+        'internal',
+        p_amount,
+        'EUR',
+        'transfer',
+        'outgoing',
+        'approved',
+        p_request_id
+    );
+
+    -- 8. Insérer la transaction incoming (destinataire)
+    INSERT INTO transactions (
+        user_id, wallet_id, provider, amount, currency,
+        transaction_type, direction, status, request_id
+    ) VALUES (
+        v_to_wallet.user_id,
+        v_to_wallet.id,
+        'internal',
+        p_amount,
+        'EUR',
+        'transfer',
+        'incoming',
+        'approved',
+        uuid_generate_v4()
+    );
+
+    -- 9. Retourner le succès avec l'ID de la transaction
+    RETURN jsonb_build_object(
+        'success', true,
+        'transaction_id', v_tx_id,
+        'error_message', NULL
+    );
+END;
+$$;
+
 -- Fonction: Récupérer le dernier pays de transaction (pour R3: LOCATION_CHANGE)
 CREATE OR REPLACE FUNCTION get_last_transaction_country(
     p_user_id UUID
@@ -421,10 +523,20 @@ CREATE POLICY "Users can view own profile"
 ON users FOR SELECT
 USING (auth.uid() = id);
 
+-- Les utilisateurs peuvent créer leur propre profil (auto-registration après OTP)
+CREATE POLICY "Users can insert own profile"
+ON users FOR INSERT
+WITH CHECK (auth.uid() = id);
+
 -- Les utilisateurs peuvent mettre à jour leur propre profil
 CREATE POLICY "Users can update own profile"
 ON users FOR UPDATE
 USING (auth.uid() = id);
+
+-- Les utilisateurs authentifiés peuvent voir tous les profils (sélecteur de destinataire)
+CREATE POLICY "Authenticated users can view all users"
+ON users FOR SELECT
+USING (auth.role() = 'authenticated');
 
 -- -----------------------------------------------------------------------------
 -- Policies: wallets
@@ -434,6 +546,11 @@ USING (auth.uid() = id);
 CREATE POLICY "Users can view own wallets"
 ON wallets FOR SELECT
 USING (auth.uid() = user_id);
+
+-- Les utilisateurs peuvent créer leur propre wallet (auto-création après inscription)
+CREATE POLICY "Users can insert own wallet"
+ON wallets FOR INSERT
+WITH CHECK (auth.uid() = user_id);
 
 -- -----------------------------------------------------------------------------
 -- Policies: transactions
@@ -589,3 +706,52 @@ COMMENT ON COLUMN transactions.score_ml IS 'Score de risque 0-100 calculé par l
 COMMENT ON COLUMN transactions.reasons_json IS 'Codes des raisons déclenchées (max 3)';
 COMMENT ON COLUMN users.kyc_expires_at IS 'Date expiration KYC pour R6: KYC_EXPIRED';
 COMMENT ON COLUMN users.campus IS 'Campus pour R8: CAMPUS_NOT_ALLOWED';
+
+-- =============================================================================
+-- TABLE: money_requests
+-- =============================================================================
+-- Demandes d'argent entre utilisateurs
+
+CREATE TABLE money_requests (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    requester_id UUID NOT NULL REFERENCES users(id),
+    target_id UUID NOT NULL REFERENCES users(id),
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'fulfilled', 'declined')),
+    message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_money_requests_requester ON money_requests(requester_id);
+CREATE INDEX idx_money_requests_target ON money_requests(target_id, status, created_at DESC);
+
+-- RLS
+ALTER TABLE money_requests ENABLE ROW LEVEL SECURITY;
+
+-- Le demandeur peut voir et créer ses propres demandes
+CREATE POLICY "Requesters can view own requests"
+ON money_requests FOR SELECT
+USING (auth.uid() = requester_id);
+
+CREATE POLICY "Requesters can insert own requests"
+ON money_requests FOR INSERT
+WITH CHECK (auth.uid() = requester_id);
+
+-- Le destinataire peut voir et mettre à jour les demandes qui lui sont adressées
+CREATE POLICY "Targets can view received requests"
+ON money_requests FOR SELECT
+USING (auth.uid() = target_id);
+
+CREATE POLICY "Targets can update received requests"
+ON money_requests FOR UPDATE
+USING (auth.uid() = target_id);
+
+-- Trigger updated_at
+CREATE TRIGGER update_money_requests_updated_at
+    BEFORE UPDATE ON money_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+COMMENT ON TABLE money_requests IS 'Demandes d argent entre utilisateurs';
