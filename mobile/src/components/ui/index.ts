@@ -6,3 +6,4 @@ export { Avatar } from './Avatar';
 export { IconButton } from './IconButton';
 export { Divider } from './Divider';
 export { Skeleton, TextSkeleton, AvatarSkeleton, CardSkeleton } from './Skeleton';
+export { RiskGauge } from './RiskGauge';

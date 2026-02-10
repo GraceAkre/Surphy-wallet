@@ -1,208 +1,134 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
+  ScrollView,
+  Switch,
   Pressable,
-  FlatList,
   Alert,
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Search,
   ChevronLeft,
-  ShieldAlert,
-  MessageCircle,
-  Send,
+  ChevronRight,
+  Bell,
   Building2,
+  Shield,
 } from 'lucide-react-native';
 import { useNavigation } from '@react-navigation/native';
 
 // Components
-import { Card, Badge, Button, Input } from '../components/ui';
+import { Card, IconButton } from '../components/ui';
 
 // Utils
 import { shadows } from '../utils/shadows';
+import { formatCurrency } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
-import { getAllPeers } from '../lib/api';
-import type { Peer, PeerStatus } from '../lib/types';
-
-// --- Types ---
-
-interface CampusDisplay {
-  id: string;
-  name: string;
-  country: string;
-  status: PeerStatus;
-  blockedReason?: string;
-}
-
-// Helper pour extraire le pays depuis le campus
-const getCountryFromCampus = (campusName: string): string => {
-  return 'France';
-};
-
-// Mapper les statuts Supabase vers l'affichage
-const mapPeerToDisplay = (peer: Peer): CampusDisplay => ({
-  id: peer.id,
-  name: `Epitech ${peer.campus_name}`,
-  country: getCountryFromCampus(peer.campus_name),
-  status: peer.status,
-  blockedReason:
-    peer.status === 'suspended'
-      ? 'Campus suspendu temporairement'
-      : peer.status === 'revoked'
-        ? 'CAMPUS_NOT_ALLOWED (R8)'
-        : undefined,
-});
-
-const getStatusVariant = (status: PeerStatus): 'success' | 'warning' | 'danger' | 'neutral' => {
-  switch (status) {
-    case 'active':
-      return 'success';
-    case 'suspended':
-      return 'warning';
-    case 'revoked':
-      return 'danger';
-    default:
-      return 'neutral';
-  }
-};
-
-const getStatusLabel = (status: PeerStatus): string => {
-  switch (status) {
-    case 'active':
-      return 'Actif';
-    case 'suspended':
-      return 'Suspendu';
-    case 'revoked':
-      return 'Révoqué';
-    default:
-      return status;
-  }
-};
+import {
+  getCurrentUser,
+  getUserWallet,
+  getActivePeers,
+  getUserCampusWallets,
+  createCampusWallet,
+  deactivateCampusWallet,
+} from '../lib/api';
+import type { User, Wallet, Peer } from '../lib/types';
 
 export default function InteroperabilityScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { light, selection } = useHaptics();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
   const [peers, setPeers] = useState<Peer[]>([]);
+  const [campusWallets, setCampusWallets] = useState<Wallet[]>([]);
+  const [togglingPeer, setTogglingPeer] = useState<string | null>(null);
 
-  // Fetch peers from Supabase
-  const fetchPeers = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const data = await getAllPeers();
-      setPeers(data);
+      const currentUser = await getCurrentUser();
+      if (!currentUser) return;
+      setUser(currentUser);
+
+      const [userWallet, activePeers, allCampusWallets] = await Promise.all([
+        getUserWallet(currentUser.id),
+        getActivePeers(),
+        getUserCampusWallets(currentUser.id),
+      ]);
+
+      setWallet(userWallet);
+      setCampusWallets(allCampusWallets);
+      // Filter out user's own campus
+      const partnerPeers = activePeers.filter(
+        (p) => p.campus_name !== currentUser.campus
+      );
+      setPeers(partnerPeers);
     } catch (error) {
-      console.error('Error fetching peers:', error);
+      console.error('Error fetching interoperability data:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchPeers();
-  }, [fetchPeers]);
+    fetchData();
+  }, [fetchData]);
 
-  // Convert to display format
-  const campuses = useMemo(() => peers.map(mapPeerToDisplay), [peers]);
+  const getWalletForCampus = (campusName: string): Wallet | undefined => {
+    return campusWallets.find((w) => w.campus === campusName);
+  };
 
-  // Filtrage
-  const filteredCampuses = useMemo(
-    () =>
-      campuses.filter(
-        (c) =>
-          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.country.toLowerCase().includes(searchQuery.toLowerCase())
-      ),
-    [campuses, searchQuery]
-  );
-
-  // Handlers
-  const handleCampusPress = (campus: CampusDisplay) => {
+  const togglePeer = async (campusName: string) => {
+    if (!user || togglingPeer) return;
     selection();
-    if (campus.status === 'suspended' || campus.status === 'revoked') {
-      Alert.alert('Campus Bloqué', `Raison: ${campus.blockedReason}`);
-      return;
+    setTogglingPeer(campusName);
+
+    try {
+      const existingWallet = getWalletForCampus(campusName);
+
+      if (existingWallet) {
+        // Désactiver le wallet
+        const result = await deactivateCampusWallet(existingWallet.id);
+        if (!result.success) {
+          Alert.alert('Impossible de désactiver', result.errorMessage || 'Erreur inconnue');
+          return;
+        }
+      } else {
+        // Créer un nouveau wallet pour ce campus
+        const result = await createCampusWallet(user.id, campusName);
+        if (!result.success) {
+          Alert.alert('Erreur', result.errorMessage || 'Impossible de créer le wallet');
+          return;
+        }
+      }
+
+      // Refetch les wallets
+      const updatedWallets = await getUserCampusWallets(user.id);
+      setCampusWallets(updatedWallets);
+    } catch (error) {
+      console.error('Error toggling campus wallet:', error);
+      Alert.alert('Erreur', 'Une erreur est survenue');
+    } finally {
+      setTogglingPeer(null);
     }
-    setSelectedCampus(selectedCampus === campus.id ? null : campus.id);
   };
 
-  const handleContact = () => {
+  const handleNext = () => {
     light();
-    Alert.alert('Contact', 'Fonctionnalité à venir');
+    Alert.alert('Multi-Campus', 'Fonctionnalité de transfert inter-campus à venir.');
   };
 
-  const handleTransfer = () => {
+  const handleSupport = () => {
     light();
-    if (selectedCampus) {
-      Alert.alert('Transfert', 'Fonctionnalité à venir');
-    } else {
-      Alert.alert('Sélection requise', 'Veuillez sélectionner un campus');
-    }
+    navigation.navigate('SupportChat');
   };
 
-  // --- Render Campus Card ---
-  const renderCampusCard = ({ item }: { item: CampusDisplay }) => {
-    const isSelected = selectedCampus === item.id;
-    const isBlocked = item.status === 'suspended' || item.status === 'revoked';
-
-    return (
-      <Pressable
-        onPress={() => handleCampusPress(item)}
-        style={({ pressed }) => [
-          shadows.card,
-          {
-            transform: [{ scale: pressed ? 0.98 : 1 }],
-            opacity: isBlocked ? 0.8 : 1,
-          },
-        ]}
-        className={`
-          p-4 mb-3 rounded-2xl border-2
-          ${isSelected ? 'bg-primary-50 border-primary' : 'bg-surface border-separator-opaque'}
-        `}
-      >
-        <View className="flex-row items-center justify-between">
-          {/* Left: Icon + Name */}
-          <View className="flex-row items-center gap-3">
-            <View
-              className={`w-10 h-10 rounded-xl items-center justify-center ${
-                isSelected ? 'bg-primary' : 'bg-background'
-              }`}
-            >
-              <Building2 size={20} color={isSelected ? 'white' : '#6E6E73'} />
-            </View>
-            <View>
-              <Text className="text-headline text-ink-primary">{item.name}</Text>
-              <Text className="text-footnote text-ink-tertiary">{item.country}</Text>
-            </View>
-          </View>
-
-          {/* Right: Status Badge */}
-          <Badge variant={getStatusVariant(item.status)} size="sm">
-            {getStatusLabel(item.status)}
-          </Badge>
-        </View>
-
-        {/* Blocked Reason */}
-        {item.blockedReason && (
-          <View className="mt-3 flex-row items-center gap-2 bg-danger-50 p-2 rounded-lg">
-            <ShieldAlert size={14} color="#FF3B30" />
-            <Text className="text-footnote text-danger font-medium">{item.blockedReason}</Text>
-          </View>
-        )}
-      </Pressable>
-    );
-  };
-
-  // --- Loading State ---
+  // --- Loading ---
   if (loading) {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -226,81 +152,186 @@ export default function InteroperabilityScreen() {
           >
             <ChevronLeft size={28} color="#1D1D1F" />
           </Pressable>
-          <Text className="text-title2 text-ink-primary">Inter-Campus</Text>
-          <View className="w-11" />
+          <Text className="text-title2 text-ink-primary">Surphy Multi-Campus</Text>
+          <IconButton
+            icon={Bell}
+            variant="outlined"
+            onPress={() => navigation.navigate('Notifications')}
+          />
         </View>
       </SafeAreaView>
 
-      <View className="flex-1 px-screen">
-        {/* Search Bar */}
-        <View
-          className="flex-row items-center bg-surface rounded-input px-4 h-12 mb-6 border border-separator-opaque"
-          style={shadows.soft}
-        >
-          <Search size={20} color="#86868B" />
-          <TextInput
-            className="flex-1 ml-3 text-body text-ink-primary"
-            placeholder="Rechercher un campus..."
-            placeholderTextColor="#86868B"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 160 + insets.bottom }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Subtitle */}
+        <View className="px-screen mb-6">
+          <Text className="text-body text-ink-secondary">
+            Passez facilement entre vos soldes de campus
+          </Text>
         </View>
 
-        {/* List Header */}
-        <Text className="text-footnote text-ink-tertiary mb-3 uppercase tracking-wider font-semibold">
-          Partenaires ({filteredCampuses.length})
-        </Text>
-
-        {/* Campus List */}
-        <FlatList
-          data={filteredCampuses}
-          renderItem={renderCampusCard}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 120 + insets.bottom }}
-          ListEmptyComponent={
-            <View className="p-8 items-center">
-              <Text className="text-body text-ink-tertiary">Aucun campus trouvé</Text>
+        {/* Campus principal */}
+        <View className="px-screen mb-4">
+          <Card variant="elevated" padding="lg">
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center gap-3 flex-1">
+                <View className="w-12 h-12 rounded-xl items-center justify-center bg-primary/10">
+                  <Building2 size={24} color="#3B82F6" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-headline text-ink-primary">
+                    Epitech {user?.campus || 'Campus'}
+                  </Text>
+                  <View className="flex-row items-center gap-2 mt-1">
+                    <View className="bg-primary/10 rounded-full px-2.5 py-0.5">
+                      <Text className="text-caption2 font-semibold text-primary">
+                        Campus principal
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+              <Switch
+                trackColor={{ false: '#E5E5EA', true: '#3B82F6' }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor="#3B82F6"
+                value={true}
+                disabled={true}
+              />
             </View>
-          }
-        />
-      </View>
+            <View className="mt-3 pt-3 border-t border-separator-opaque/50">
+              <Text className="text-footnote text-ink-tertiary">
+                Solde : <Text className="font-semibold text-ink-primary">{formatCurrency(wallet?.balance || 0)}</Text>
+              </Text>
+            </View>
+          </Card>
+        </View>
 
-      {/* Bottom Actions */}
+        {/* Campus partenaires */}
+        {peers.length > 0 && (
+          <View className="px-screen">
+            <Text className="text-footnote text-ink-tertiary mb-3 uppercase tracking-wider font-semibold">
+              Campus partenaires
+            </Text>
+            {peers.map((peer) => {
+              const campusWallet = getWalletForCampus(peer.campus_name);
+              const isEnabled = !!campusWallet;
+              const isToggling = togglingPeer === peer.campus_name;
+
+              return (
+                <Pressable
+                  key={peer.id}
+                  onPress={() => togglePeer(peer.campus_name)}
+                  disabled={isToggling}
+                  style={({ pressed }) => [
+                    shadows.card,
+                    {
+                      transform: [{ scale: pressed ? 0.98 : 1 }],
+                      opacity: isToggling ? 0.7 : 1,
+                    },
+                  ]}
+                  className={`
+                    p-4 mb-3 rounded-2xl border
+                    ${isEnabled ? 'bg-primary/5 border-primary/30' : 'bg-surface border-separator-opaque'}
+                  `}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center gap-3 flex-1">
+                      <View
+                        className={`w-12 h-12 rounded-xl items-center justify-center ${
+                          isEnabled ? 'bg-primary/10' : 'bg-background'
+                        }`}
+                      >
+                        <Building2 size={24} color={isEnabled ? '#3B82F6' : '#6E6E73'} />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-headline text-ink-primary">
+                          Epitech {peer.campus_name}
+                        </Text>
+                        <View className="flex-row items-center gap-2 mt-1">
+                          <View className="bg-background rounded-full px-2.5 py-0.5">
+                            <Text className="text-caption2 font-semibold text-ink-tertiary">
+                              Campus partenaire
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
+                    <View className="flex-row items-center gap-2">
+                      {isToggling ? (
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                      ) : (
+                        <Switch
+                          trackColor={{ false: '#E5E5EA', true: '#3B82F6' }}
+                          thumbColor="#FFFFFF"
+                          ios_backgroundColor="#E5E5EA"
+                          value={isEnabled}
+                          onValueChange={() => togglePeer(peer.campus_name)}
+                        />
+                      )}
+                      <ChevronRight size={18} color="#C7C7CC" />
+                    </View>
+                  </View>
+                  <View className="mt-3 pt-3 border-t border-separator-opaque/50">
+                    <Text className="text-footnote text-ink-tertiary">
+                      Avoirs : <Text className="font-semibold text-ink-primary">{formatCurrency(campusWallet?.balance ?? 0)}</Text>
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Security Banner */}
+        <View className="px-screen mt-4">
+          <View
+            className="bg-green-50 border border-green-200 rounded-2xl p-4 flex-row items-center gap-3"
+            style={shadows.soft}
+          >
+            <View className="w-10 h-10 rounded-full bg-green-100 items-center justify-center">
+              <Shield size={22} color="#22C55E" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-subheadline font-semibold text-green-800">
+                Transactions inter-campus 100% sécurisé
+              </Text>
+              <Text className="text-caption1 text-green-600 mt-0.5">
+                Toutes les opérations sont chiffrées et vérifiées en temps réel
+              </Text>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Footer fixe */}
       <View
         style={[
-          shadows.modal,
+          shadows.card,
           { paddingBottom: Math.max(insets.bottom, 20) },
         ]}
-        className="absolute bottom-0 left-0 right-0 p-5 bg-surface border-t border-separator-opaque rounded-t-3xl"
+        className="absolute bottom-0 left-0 right-0 p-5 bg-surface border-t border-separator-opaque"
       >
-        <View className="flex-row gap-3">
-          {/* Contact Button */}
-          <View className="flex-1">
-            <Button variant="secondary" fullWidth onPress={handleContact}>
-              <View className="flex-row items-center justify-center gap-2">
-                <MessageCircle size={20} color="#1D1D1F" />
-                <Text className="text-headline text-ink-primary">Contacter</Text>
-              </View>
-            </Button>
-          </View>
+        <Pressable
+          onPress={handleNext}
+          style={({ pressed }) => [
+            shadows.primaryButton,
+            { transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+          className="bg-primary rounded-button py-4 items-center justify-center flex-row mb-3"
+        >
+          <Text className="text-headline font-semibold text-white mr-1">Suivant</Text>
+          <ChevronRight size={20} color="white" />
+        </Pressable>
 
-          {/* Transfer Button */}
-          <View className="flex-1">
-            <Button
-              variant="primary"
-              fullWidth
-              onPress={handleTransfer}
-              disabled={!selectedCampus}
-            >
-              <View className="flex-row items-center justify-center gap-2">
-                <Send size={20} color="white" />
-                <Text className="text-headline text-white">Transfert</Text>
-              </View>
-            </Button>
-          </View>
-        </View>
+        <Pressable onPress={handleSupport} className="items-center py-2">
+          <Text className="text-footnote text-ink-tertiary">
+            Besoin d'aide ?{' '}
+            <Text className="text-primary font-medium">Contacter le support</Text>
+          </Text>
+        </Pressable>
       </View>
     </View>
   );

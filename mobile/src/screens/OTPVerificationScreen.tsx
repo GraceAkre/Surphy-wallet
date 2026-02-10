@@ -24,6 +24,7 @@ type RootStackParamList = {
   EmailLogin: undefined;
   OTPVerification: { email: string };
   Main: undefined;
+  AnalystMain: undefined;
 };
 
 type OTPVerificationScreenProps = {
@@ -109,9 +110,10 @@ export default function OTPVerificationScreen({ navigation, route }: OTPVerifica
 
       if (data.session) {
         success();
+        const isAnalyst = email.endsWith('@analyst.surphy.fr');
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Main' }],
+          routes: [{ name: isAnalyst ? 'AnalystMain' : 'Main' }],
         });
       }
     } catch (err) {

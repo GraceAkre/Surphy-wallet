@@ -10,7 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, ArrowUpRight, ArrowDownLeft, Check, X, XCircle } from 'lucide-react-native';
+import { Bell, ArrowUpRight, ArrowDownLeft, Plus, Check, X, XCircle, Building2, ChevronRight } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -47,6 +47,8 @@ type RootStackParamList = {
   Notifications: undefined;
   CardPayment: undefined;
   Receive: undefined;
+  Deposit: undefined;
+  Interoperability: undefined;
 };
 
 type HomeScreenProps = {
@@ -213,7 +215,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       </Text>
 
       {/* Quick Actions */}
-      <View className="flex-row gap-3">
+      <View className="flex-row gap-2">
         <Pressable
           onPress={() => {
             light();
@@ -225,8 +227,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           ]}
           className="bg-primary rounded-button py-3.5 flex-row justify-center items-center"
         >
-          <ArrowUpRight size={18} color="white" style={{ marginRight: 8 }} />
-          <Text className="text-headline text-white">Envoyer</Text>
+          <ArrowUpRight size={16} color="white" style={{ marginRight: 6 }} />
+          <Text className="text-subheadline font-semibold text-white">Envoyer</Text>
         </Pressable>
 
         <Pressable
@@ -240,8 +242,23 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           ]}
           className="bg-surface border border-separator-opaque rounded-button py-3.5 flex-row justify-center items-center"
         >
-          <ArrowDownLeft size={18} color="#3B82F6" style={{ marginRight: 8 }} />
-          <Text className="text-headline text-primary">Recevoir</Text>
+          <ArrowDownLeft size={16} color="#3B82F6" style={{ marginRight: 6 }} />
+          <Text className="text-subheadline font-semibold text-primary">Recevoir</Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            light();
+            navigation.navigate('Deposit');
+          }}
+          style={({ pressed }) => [
+            shadows.soft,
+            { flex: 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+          className="bg-surface border border-separator-opaque rounded-button py-3.5 flex-row justify-center items-center"
+        >
+          <Plus size={16} color="#3B82F6" style={{ marginRight: 6 }} />
+          <Text className="text-subheadline font-semibold text-primary">Déposer</Text>
         </Pressable>
       </View>
     </Card>
@@ -281,6 +298,28 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       >
         {/* Balance Card */}
         {renderBalanceCard()}
+
+        {/* Multi-Campus Banner */}
+        <Pressable
+          onPress={() => {
+            light();
+            navigation.navigate('Interoperability');
+          }}
+          style={({ pressed }) => [
+            shadows.card,
+            { transform: [{ scale: pressed ? 0.98 : 1 }] },
+          ]}
+          className="mx-screen mb-6 bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3.5 flex-row items-center"
+        >
+          <View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center mr-3">
+            <Building2 size={20} color="#3B82F6" />
+          </View>
+          <View className="flex-1">
+            <Text className="text-subheadline font-semibold text-ink-primary">Multi-Campus</Text>
+            <Text className="text-caption1 text-ink-tertiary">Passez entre vos soldes de campus</Text>
+          </View>
+          <ChevronRight size={20} color="#3B82F6" />
+        </Pressable>
 
         {/* Alert Banner */}
         {hasSuspiciousAlert && suspiciousTransaction && (

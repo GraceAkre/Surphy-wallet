@@ -114,12 +114,16 @@ CREATE INDEX idx_users_campus ON users(campus);
 CREATE TABLE wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    campus VARCHAR(100),  -- Campus associé au wallet
     currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
     balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
     status wallet_status DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Contrainte UNIQUE : un seul wallet actif par user+campus
+ALTER TABLE wallets ADD CONSTRAINT wallets_user_campus_unique UNIQUE (user_id, campus);
 
 -- Index pour recherche par user
 CREATE INDEX idx_wallets_user_id ON wallets(user_id);
@@ -393,9 +397,10 @@ DECLARE
     v_to_wallet RECORD;
     v_tx_id UUID;
 BEGIN
-    -- 0. Résoudre le wallet actif du destinataire à partir de son user_id
-    SELECT * INTO v_to_wallet FROM wallets
-    WHERE user_id = p_to_user_id AND status = 'active'
+    -- 0. Résoudre le wallet actif du destinataire (campus principal)
+    SELECT w.* INTO v_to_wallet FROM wallets w
+    INNER JOIN users u ON u.id = w.user_id
+    WHERE w.user_id = p_to_user_id AND w.status = 'active' AND w.campus = u.campus
     LIMIT 1;
 
     IF v_to_wallet.id IS NULL THEN
@@ -552,6 +557,12 @@ CREATE POLICY "Users can insert own wallet"
 ON wallets FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
+-- Les utilisateurs peuvent mettre à jour leurs propres wallets (désactivation campus)
+CREATE POLICY "Users can update own wallets"
+ON wallets FOR UPDATE
+USING (auth.uid() = user_id)
+WITH CHECK (auth.uid() = user_id);
+
 -- -----------------------------------------------------------------------------
 -- Policies: transactions
 -- -----------------------------------------------------------------------------
@@ -566,14 +577,25 @@ CREATE POLICY "Users can create own transactions"
 ON transactions FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
--- Les analystes (@epitech.digital) peuvent voir toutes les transactions
+-- Les analystes (@analyst.surphy.fr) peuvent voir toutes les transactions
 CREATE POLICY "Analysts can view all transactions"
 ON transactions FOR SELECT
 USING (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.digital'
+        AND email LIKE '%@analyst.surphy.fr'
+    )
+);
+
+-- Les analystes peuvent mettre à jour les transactions (décision/statut)
+CREATE POLICY "Analysts can update transactions"
+ON transactions FOR UPDATE
+USING (
+    EXISTS (
+        SELECT 1 FROM users
+        WHERE id = auth.uid()
+        AND email LIKE '%@analyst.surphy.fr'
     )
 );
 
@@ -588,7 +610,7 @@ WITH CHECK (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.digital'
+        AND email LIKE '%@analyst.surphy.fr'
     )
 );
 
@@ -599,7 +621,7 @@ USING (
     EXISTS (
         SELECT 1 FROM users
         WHERE id = auth.uid()
-        AND email LIKE '%@epitech.digital'
+        AND email LIKE '%@analyst.surphy.fr'
     )
 );
 
@@ -685,10 +707,11 @@ INSERT INTO peers (campus_name, base_url, jwks_url, public_key, status, allowed_
 VALUES
     ('Paris', 'https://paris.surphy-wallet.com', 'https://paris.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
     ('Lyon', 'https://lyon.surphy-wallet.com', 'https://lyon.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
-    ('Bordeaux', 'https://bordeaux.surphy-wallet.com', 'https://bordeaux.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
-    ('Lille', 'https://lille.surphy-wallet.com', 'https://lille.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital']),
-    ('Nantes', 'https://nantes.surphy-wallet.com', 'https://nantes.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital'])
+    ('Bordeaux', 'https://bordeaux.surphy-wallet.com', 'https://bordeaux.surphy-wallet.com/.well-known/jwks.json', 'PLACEHOLDER_PUBLIC_KEY', 'active', ARRAY['@epitech.digital'])
 ON CONFLICT (campus_name) DO NOTHING;
+
+-- Backfill : associer les wallets existants au campus principal de l'utilisateur
+UPDATE wallets w SET campus = u.campus FROM users u WHERE w.user_id = u.id AND w.campus IS NULL;
 
 -- =============================================================================
 -- COMMENTAIRES

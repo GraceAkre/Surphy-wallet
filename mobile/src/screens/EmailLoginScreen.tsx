@@ -23,6 +23,7 @@ type RootStackParamList = {
   Onboarding: undefined;
   EmailLogin: undefined;
   Main: undefined;
+  AnalystMain: undefined;
 };
 
 type EmailLoginScreenProps = {
@@ -56,10 +57,10 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
       return;
     }
 
-    if (!email.endsWith('@epitech.digital')) {
+    if (!email.endsWith('@epitech.digital') && !email.endsWith('@analyst.surphy.fr')) {
       Alert.alert(
         'Domaine non autorisé',
-        'Seules les adresses @epitech.digital sont autorisées.'
+        'Seules les adresses @epitech.digital et @analyst.surphy.fr sont autorisées.'
       );
       return;
     }
@@ -98,9 +99,10 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
 
         if (data.session) {
           success();
+          const isAnalyst = email.trim().toLowerCase().endsWith('@analyst.surphy.fr');
           navigation.reset({
             index: 0,
-            routes: [{ name: 'Main' }],
+            routes: [{ name: isAnalyst ? 'AnalystMain' : 'Main' }],
           });
           return;
         }
@@ -132,9 +134,10 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
 
         if (data.session) {
           success();
+          const isAnalyst = email.trim().toLowerCase().endsWith('@analyst.surphy.fr');
           navigation.reset({
             index: 0,
-            routes: [{ name: 'Main' }],
+            routes: [{ name: isAnalyst ? 'AnalystMain' : 'Main' }],
           });
         } else {
           hapticError();
@@ -184,8 +187,8 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
             </Text>
             <Text className="text-body text-ink-secondary leading-relaxed mb-8">
               {isSignUp
-                ? 'Créez votre compte avec votre adresse @epitech.digital'
-                : 'Connectez-vous avec votre adresse @epitech.digital'}
+                ? 'Créez votre compte avec votre adresse institutionnelle'
+                : 'Connectez-vous avec votre adresse institutionnelle'}
             </Text>
 
             {/* Email Input */}

@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Home, Clock, CreditCard, User } from 'lucide-react-native';
+import { Home, Clock, CreditCard, User, ShieldAlert } from 'lucide-react-native';
 
 // --- Imports des Écrans ---
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -23,6 +23,17 @@ import TransferSuccessScreen from './screens/TransferSuccessScreen';
 import TransactionDetailScreen from './screens/TransactionDetailScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ReceiveScreen from './screens/ReceiveScreen';
+import DepositScreen from './screens/DepositScreen';
+import DepositSuccessScreen from './screens/DepositSuccessScreen';
+import SupportChatScreen from './screens/SupportChatScreen';
+
+// --- Imports Écrans Analyste ---
+import AnalystDashboardScreen from './screens/analyst/AnalystDashboardScreen';
+import AnalystAlertsScreen from './screens/analyst/AnalystAlertsScreen';
+import AlertDetailScreen from './screens/analyst/AlertDetailScreen';
+import AnalystProfileScreen from './screens/analyst/AnalystProfileScreen';
+import AnalystNotificationsScreen from './screens/analyst/AnalystNotificationsScreen';
+import { AnalystNotificationsProvider } from './contexts/AnalystNotificationsContext';
 
 // --- Définition des Types de Navigation ---
 
@@ -32,12 +43,16 @@ export type RootStackParamList = {
   EmailLogin: undefined;
   OTPVerification: { email: string };
 
-  // Flux Principal
+  // Flux Principal (Étudiant)
   Main: undefined;
+
+  // Flux Principal (Analyste)
+  AnalystMain: undefined;
 
   // Écrans Fonctionnels
   CardPayment: undefined;
   Receive: undefined;
+  Deposit: undefined;
   TransactionDetail: { id: string };
   Notifications: undefined;
   Interoperability: undefined;
@@ -45,10 +60,20 @@ export type RootStackParamList = {
   // Flux de Virement
   TransferSuccess: { amount: string; recipient: string; transactionId: string };
 
+  // Flux de Dépôt
+  DepositSuccess: { amount: string; transactionId: string };
+
+  // Support
+  SupportChat: undefined;
+
   // Flux de Sécurité
   Verification: { transactionId: string };
   Explicability: { transactionId: string; reasons: string[] };
   RiskGauge: undefined;
+
+  // Analyste - Écrans de flux
+  AlertDetail: { transactionId: string };
+  AnalystNotifications: undefined;
 };
 
 export type MainTabParamList = {
@@ -58,36 +83,47 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
+export type AnalystTabParamList = {
+  AnalystDashboard: undefined;
+  AnalystAlerts: undefined;
+  AnalystProfile: undefined;
+};
+
 // --- Configuration des Navigateurs ---
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+const AnalystTab = createBottomTabNavigator<AnalystTabParamList>();
 
-// --- Tab Bar Navigator ---
+// --- Tab Bar Style (partagé) ---
+
+const TAB_BAR_STYLE = {
+  backgroundColor: '#FFFFFF',
+  borderTopColor: '#E5E5EA',
+  borderTopWidth: 0.5,
+  height: Platform.OS === 'ios' ? 85 : 70,
+  paddingTop: 8,
+  paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+  ...Platform.select({
+    ios: {
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: -2 },
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+    },
+    android: {
+      elevation: 8,
+    },
+  }),
+} as const;
+
+// --- Student Tab Bar Navigator ---
 function MainTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderTopColor: '#E5E5EA',
-          borderTopWidth: 0.5,
-          height: Platform.OS === 'ios' ? 85 : 70,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-          ...Platform.select({
-            ios: {
-              shadowColor: '#000000',
-              shadowOffset: { width: 0, height: -2 },
-              shadowOpacity: 0.04,
-              shadowRadius: 8,
-            },
-            android: {
-              elevation: 8,
-            },
-          }),
-        },
+        tabBarStyle: TAB_BAR_STYLE,
         tabBarActiveTintColor: '#3B82F6',
         tabBarInactiveTintColor: '#86868B',
         tabBarLabelStyle: {
@@ -144,6 +180,67 @@ function MainTabNavigator() {
   );
 }
 
+// --- Analyst Tab Bar Navigator ---
+function AnalystTabNavigatorContent() {
+  return (
+    <AnalystTab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: TAB_BAR_STYLE,
+        tabBarActiveTintColor: '#3B82F6',
+        tabBarInactiveTintColor: '#86868B',
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
+      }}
+    >
+      <AnalystTab.Screen
+        name="AnalystDashboard"
+        component={AnalystDashboardScreen}
+        options={{
+          tabBarLabel: 'Accueil',
+          tabBarIcon: ({ color, focused }) => (
+            <Home size={focused ? 26 : 24} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+      <AnalystTab.Screen
+        name="AnalystAlerts"
+        component={AnalystAlertsScreen}
+        options={{
+          tabBarLabel: 'Alertes',
+          tabBarIcon: ({ color, focused }) => (
+            <ShieldAlert size={focused ? 26 : 24} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+      <AnalystTab.Screen
+        name="AnalystProfile"
+        component={AnalystProfileScreen}
+        options={{
+          tabBarLabel: 'Profil',
+          tabBarIcon: ({ color, focused }) => (
+            <User size={focused ? 26 : 24} color={color} strokeWidth={focused ? 2.5 : 2} />
+          ),
+        }}
+      />
+    </AnalystTab.Navigator>
+  );
+}
+
+function AnalystTabNavigator() {
+  return (
+    <AnalystNotificationsProvider>
+      <AnalystTabNavigatorContent />
+    </AnalystNotificationsProvider>
+  );
+}
+
 // --- Main Stack Navigator ---
 export default function App() {
   return (
@@ -170,10 +267,19 @@ export default function App() {
             <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
           </Stack.Group>
 
-          {/* Groupe 2 : Application Principale */}
+          {/* Groupe 2 : Application Principale (Étudiant) */}
           <Stack.Screen
             name="Main"
             component={MainTabNavigator}
+            options={{
+              animation: 'fade',
+            }}
+          />
+
+          {/* Groupe 2b : Application Principale (Analyste) */}
+          <Stack.Screen
+            name="AnalystMain"
+            component={AnalystTabNavigator}
             options={{
               animation: 'fade',
             }}
@@ -187,11 +293,16 @@ export default function App() {
           >
             <Stack.Screen name="CardPayment" component={CardPaymentScreen} />
             <Stack.Screen name="Receive" component={ReceiveScreen} />
+            <Stack.Screen name="Deposit" component={DepositScreen} />
+            <Stack.Screen name="DepositSuccess" component={DepositSuccessScreen} />
             <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />
             <Stack.Screen name="Notifications" component={NotificationsScreen} />
             <Stack.Screen name="TransferSuccess" component={TransferSuccessScreen} />
             <Stack.Screen name="RiskGauge" component={RiskGaugeScreen} />
             <Stack.Screen name="Interoperability" component={InteroperabilityScreen} />
+            <Stack.Screen name="SupportChat" component={SupportChatScreen} />
+            <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
+            <Stack.Screen name="AnalystNotifications" component={AnalystNotificationsScreen} />
           </Stack.Group>
 
           {/* Groupe 4 : Modales */}

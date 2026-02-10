@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronRight,
   LogOut,
-  Bell,
   Lock,
   User,
   Building,
@@ -47,6 +46,7 @@ import { useHaptics } from '../hooks/useHaptics';
 type RootStackParamList = {
   Onboarding: undefined;
   Profile: undefined;
+  SupportChat: undefined;
 };
 
 type ProfileScreenProps = {
@@ -389,11 +389,8 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           />
         }
       >
-        {/* Header */}
-        <View className="px-screen pt-4 pb-2 flex-row justify-between items-center">
-          <View />
-          <Bell size={24} color="#1D1D1F" />
-        </View>
+        {/* Spacer */}
+        <View className="pt-4 pb-2" />
 
         {/* Profile Card */}
         <Card variant="elevated" padding="lg" className="mx-screen mb-6 mt-2 items-center">
@@ -513,7 +510,13 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         </MenuCard>
 
         {/* Support Link */}
-        <Pressable className="flex-row justify-center items-center mt-4 mb-8 gap-2">
+        <Pressable
+          onPress={() => {
+            light();
+            navigation.navigate('SupportChat');
+          }}
+          className="flex-row justify-center items-center mt-4 mb-8 gap-2"
+        >
           <HelpCircle size={18} color="#3B82F6" />
           <Text className="text-subheadline text-primary font-medium">
             Contacter le support

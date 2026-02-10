@@ -7,11 +7,12 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 import * as Clipboard from 'expo-clipboard';
-import { CreditCard, HelpCircle } from 'lucide-react-native';
+import { CreditCard, HelpCircle, X, Minus, Plus } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Components
@@ -22,6 +23,7 @@ import { Section } from '../components/layout';
 
 // Utils
 import { shadows } from '../utils/shadows';
+import { formatCurrency } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
@@ -60,6 +62,11 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [cardDetails, setCardDetails] = useState<CardDetails | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  // Limits
+  const [limitsModalVisible, setLimitsModalVisible] = useState(false);
+  const [monthlyLimit, setMonthlyLimit] = useState(500);
+  const [dailyLimit, setDailyLimit] = useState(150);
 
   // --- Fetch Data ---
   const fetchData = useCallback(async () => {
@@ -176,10 +183,16 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
 
   const handleShowLimits = () => {
     light();
-    Alert.alert(
-      'Limites',
-      `Plafond mensuel : 500 €\nSolde actuel : ${wallet?.balance.toFixed(2)} €`
-    );
+    setLimitsModalVisible(true);
+  };
+
+  const adjustLimit = (type: 'monthly' | 'daily', delta: number) => {
+    light();
+    if (type === 'monthly') {
+      setMonthlyLimit((prev) => Math.max(100, Math.min(5000, prev + delta)));
+    } else {
+      setDailyLimit((prev) => Math.max(50, Math.min(1000, prev + delta)));
+    }
   };
 
   const handleShowPIN = () => {
@@ -281,6 +294,186 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
           </Text>
         </Pressable>
       </ScrollView>
+
+      {/* Limits Modal */}
+      <Modal
+        visible={limitsModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setLimitsModalVisible(false)}
+      >
+        <SafeAreaView className="flex-1 bg-background">
+          {/* Modal Header */}
+          <View className="flex-row items-center justify-between px-screen py-4 border-b border-separator-opaque/50">
+            <Text className="text-title2 text-ink-primary font-semibold">
+              Limites de carte
+            </Text>
+            <Pressable
+              onPress={() => setLimitsModalVisible(false)}
+              className="w-8 h-8 items-center justify-center rounded-full bg-gray-100"
+            >
+              <X size={18} color="#6E6E73" />
+            </Pressable>
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* Current Balance */}
+            <View className="px-screen mt-6 mb-6">
+              <Card variant="elevated" padding="lg">
+                <Text className="text-footnote text-ink-tertiary mb-1">Solde actuel</Text>
+                <Text className="text-title1 text-ink-primary font-bold">
+                  {formatCurrency(wallet?.balance || 0)}
+                </Text>
+              </Card>
+            </View>
+
+            {/* Monthly Limit */}
+            <View className="px-screen mb-6">
+              <Text className="text-headline text-ink-primary mb-3">Plafond mensuel</Text>
+              <Card variant="elevated" padding="lg">
+                <Text className="text-largeTitle text-primary font-bold text-center mb-4">
+                  {formatCurrency(monthlyLimit)}
+                </Text>
+
+                {/* Progress bar */}
+                <View className="h-2.5 bg-gray-100 rounded-full mb-2 overflow-hidden">
+                  <View
+                    className="h-full bg-primary rounded-full"
+                    style={{ width: `${Math.min(100, ((wallet?.balance || 0) / monthlyLimit) * 100)}%` }}
+                  />
+                </View>
+                <Text className="text-caption1 text-ink-tertiary mb-4">
+                  {formatCurrency(wallet?.balance || 0)} utilisé sur {formatCurrency(monthlyLimit)}
+                </Text>
+
+                {/* Stepper */}
+                <View className="flex-row items-center justify-center gap-4">
+                  <Pressable
+                    onPress={() => adjustLimit('monthly', -100)}
+                    disabled={monthlyLimit <= 100}
+                    style={({ pressed }) => [
+                      { opacity: monthlyLimit <= 100 ? 0.3 : pressed ? 0.7 : 1 },
+                    ]}
+                    className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
+                  >
+                    <Minus size={20} color="#1D1D1F" />
+                  </Pressable>
+
+                  <View className="flex-row flex-wrap gap-2">
+                    {[200, 500, 1000, 2000].map((value) => (
+                      <Pressable
+                        key={value}
+                        onPress={() => { light(); setMonthlyLimit(value); }}
+                        style={({ pressed }) => [
+                          { transform: [{ scale: pressed ? 0.95 : 1 }] },
+                        ]}
+                        className={`px-3.5 py-2 rounded-full border ${
+                          monthlyLimit === value
+                            ? 'bg-primary border-primary'
+                            : 'bg-surface border-separator-opaque'
+                        }`}
+                      >
+                        <Text className={`text-caption1 font-semibold ${
+                          monthlyLimit === value ? 'text-white' : 'text-ink-primary'
+                        }`}>
+                          {value} €
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Pressable
+                    onPress={() => adjustLimit('monthly', 100)}
+                    disabled={monthlyLimit >= 5000}
+                    style={({ pressed }) => [
+                      { opacity: monthlyLimit >= 5000 ? 0.3 : pressed ? 0.7 : 1 },
+                    ]}
+                    className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
+                  >
+                    <Plus size={20} color="#1D1D1F" />
+                  </Pressable>
+                </View>
+              </Card>
+            </View>
+
+            {/* Daily Limit */}
+            <View className="px-screen mb-6">
+              <Text className="text-headline text-ink-primary mb-3">Plafond journalier</Text>
+              <Card variant="elevated" padding="lg">
+                <Text className="text-largeTitle text-primary font-bold text-center mb-4">
+                  {formatCurrency(dailyLimit)}
+                </Text>
+
+                {/* Stepper */}
+                <View className="flex-row items-center justify-center gap-4">
+                  <Pressable
+                    onPress={() => adjustLimit('daily', -50)}
+                    disabled={dailyLimit <= 50}
+                    style={({ pressed }) => [
+                      { opacity: dailyLimit <= 50 ? 0.3 : pressed ? 0.7 : 1 },
+                    ]}
+                    className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
+                  >
+                    <Minus size={20} color="#1D1D1F" />
+                  </Pressable>
+
+                  <View className="flex-row flex-wrap gap-2">
+                    {[50, 150, 300, 500].map((value) => (
+                      <Pressable
+                        key={value}
+                        onPress={() => { light(); setDailyLimit(value); }}
+                        style={({ pressed }) => [
+                          { transform: [{ scale: pressed ? 0.95 : 1 }] },
+                        ]}
+                        className={`px-3.5 py-2 rounded-full border ${
+                          dailyLimit === value
+                            ? 'bg-primary border-primary'
+                            : 'bg-surface border-separator-opaque'
+                        }`}
+                      >
+                        <Text className={`text-caption1 font-semibold ${
+                          dailyLimit === value ? 'text-white' : 'text-ink-primary'
+                        }`}>
+                          {value} €
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <Pressable
+                    onPress={() => adjustLimit('daily', 50)}
+                    disabled={dailyLimit >= 1000}
+                    style={({ pressed }) => [
+                      { opacity: dailyLimit >= 1000 ? 0.3 : pressed ? 0.7 : 1 },
+                    ]}
+                    className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
+                  >
+                    <Plus size={20} color="#1D1D1F" />
+                  </Pressable>
+                </View>
+              </Card>
+            </View>
+
+            {/* Save Button */}
+            <View className="px-screen">
+              <Pressable
+                onPress={() => {
+                  success();
+                  setLimitsModalVisible(false);
+                  Alert.alert('Limites mises à jour', `Plafond mensuel : ${formatCurrency(monthlyLimit)}\nPlafond journalier : ${formatCurrency(dailyLimit)}`);
+                }}
+                style={({ pressed }) => [
+                  shadows.primaryButton,
+                  { transform: [{ scale: pressed ? 0.98 : 1 }] },
+                ]}
+                className="bg-primary rounded-button py-4 items-center"
+              >
+                <Text className="text-headline text-white">Enregistrer</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
