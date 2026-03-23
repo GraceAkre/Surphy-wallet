@@ -32,6 +32,7 @@ import {
   getUserWallet,
   getUserTransactions,
   generateCardDetails,
+  toggleWalletLock,
 } from '../lib/api';
 import type { User, Wallet, Transaction, CardDetails } from '../lib/types';
 
@@ -41,6 +42,7 @@ type RootStackParamList = {
   History: undefined;
   CardVirtual: undefined;
   TransactionDetail: { id: string };
+  SupportChat: { initialNodeId?: string } | undefined;
 };
 
 type CardVirtualScreenProps = {
@@ -86,10 +88,11 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
       setWallet(userWallet);
       setTransactions(userTransactions.filter((tx) => tx.direction === 'outgoing'));
 
-      // Générer les détails de carte
+      // Générer les détails de carte + init lock state
       if (userWallet) {
         const card = generateCardDetails(userWallet, currentUser);
         setCardDetails(card);
+        setIsLocked(userWallet.status === 'frozen');
       }
     } catch (error) {
       console.error('CardVirtualScreen: Error fetching data:', error);
@@ -172,9 +175,17 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
         {
           text: isLocked ? 'Déverrouiller' : 'Verrouiller',
           style: isLocked ? 'default' : 'destructive',
-          onPress: () => {
-            isLocked ? success() : hapticError();
-            setIsLocked(!isLocked);
+          onPress: async () => {
+            if (!wallet) return;
+            const newLocked = !isLocked;
+            const result = await toggleWalletLock(wallet.id, newLocked);
+            if (result.success) {
+              newLocked ? hapticError() : success();
+              setIsLocked(newLocked);
+            } else {
+              hapticError();
+              Alert.alert('Erreur', result.errorMessage || 'Impossible de modifier le statut de la carte.');
+            }
           },
         },
       ]
@@ -195,9 +206,37 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
     }
   };
 
-  const handleShowPIN = () => {
+  const handleShowPIN = async () => {
     light();
-    Alert.alert('Code PIN', 'Votre code PIN est confidentiel.');
+
+    const hasHardware = await LocalAuthentication.hasHardwareAsync();
+    const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+
+    if (hasHardware && isEnrolled) {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Authentifiez-vous pour voir le code PIN',
+        fallbackLabel: 'Annuler',
+      });
+
+      if (!result.success) {
+        hapticError();
+        return;
+      }
+    }
+
+    // Générer un PIN 4 chiffres déterministe à partir du wallet ID
+    if (wallet) {
+      const raw = wallet.id.replace(/-/g, '');
+      const pin = String(
+        ((raw.charCodeAt(4) % 10) * 1000) +
+        ((raw.charCodeAt(7) % 10) * 100) +
+        ((raw.charCodeAt(10) % 10) * 10) +
+        (raw.charCodeAt(13) % 10)
+      ).padStart(4, '0');
+
+      success();
+      Alert.alert('Code PIN', `Votre code PIN est :\n\n${pin}\n\nNe le partagez avec personne.`);
+    }
   };
 
   const handleTransactionPress = (transaction: Transaction) => {
@@ -263,7 +302,7 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
             onToggleLock={handleToggleLock}
             onToggleDetails={handleAuthAndReveal}
             onShowLimits={handleShowLimits}
-            onShowPIN={handleShowPIN}
+            onShowPin={handleShowPIN}
           />
         </View>
 
@@ -285,7 +324,7 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
 
         {/* Support Link */}
         <Pressable
-          onPress={() => Alert.alert('Support', 'Contactez-nous à support@surphy.app')}
+          onPress={() => navigation.navigate('SupportChat', { initialNodeId: 'card_type_select' })}
           className="flex-row justify-center items-center mt-6 mb-4 gap-2"
         >
           <HelpCircle size={18} color="#3B82F6" />

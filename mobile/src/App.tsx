@@ -26,6 +26,7 @@ import ReceiveScreen from './screens/ReceiveScreen';
 import DepositScreen from './screens/DepositScreen';
 import DepositSuccessScreen from './screens/DepositSuccessScreen';
 import SupportChatScreen from './screens/SupportChatScreen';
+import InterCampusTransferScreen from './screens/InterCampusTransferScreen';
 
 // --- Imports Écrans Analyste ---
 import AnalystDashboardScreen from './screens/analyst/AnalystDashboardScreen';
@@ -56,6 +57,7 @@ export type RootStackParamList = {
   TransactionDetail: { id: string };
   Notifications: undefined;
   Interoperability: undefined;
+  InterCampusTransfer: undefined;
 
   // Flux de Virement
   TransferSuccess: { amount: string; recipient: string; transactionId: string };
@@ -64,7 +66,7 @@ export type RootStackParamList = {
   DepositSuccess: { amount: string; transactionId: string };
 
   // Support
-  SupportChat: undefined;
+  SupportChat: { initialNodeId?: string } | undefined;
 
   // Flux de Sécurité
   Verification: { transactionId: string };
@@ -300,6 +302,7 @@ export default function App() {
             <Stack.Screen name="TransferSuccess" component={TransferSuccessScreen} />
             <Stack.Screen name="RiskGauge" component={RiskGaugeScreen} />
             <Stack.Screen name="Interoperability" component={InteroperabilityScreen} />
+            <Stack.Screen name="InterCampusTransfer" component={InterCampusTransferScreen} />
             <Stack.Screen name="SupportChat" component={SupportChatScreen} />
             <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
             <Stack.Screen name="AnalystNotifications" component={AnalystNotificationsScreen} />

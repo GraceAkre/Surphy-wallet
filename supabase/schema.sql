@@ -780,6 +780,268 @@ CREATE TRIGGER update_money_requests_updated_at
 COMMENT ON TABLE money_requests IS 'Demandes d argent entre utilisateurs';
 
 -- =============================================================================
+-- TABLE: campus_wallets
+-- =============================================================================
+-- Portefeuilles collectifs de campus (pot commun)
+-- 1 row par campus, pas de user_id — wallet collectif
+
+CREATE TABLE campus_wallets (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    campus_name VARCHAR(100) UNIQUE NOT NULL REFERENCES peers(campus_name),
+    balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
+    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Trigger updated_at
+CREATE TRIGGER update_campus_wallets_updated_at
+    BEFORE UPDATE ON campus_wallets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- RLS : SELECT pour tous les authentifiés, pas d'UPDATE direct (via RPC uniquement)
+ALTER TABLE campus_wallets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can view campus wallets"
+ON campus_wallets FOR SELECT
+USING (auth.role() = 'authenticated');
+
+-- Données initiales : 1 pot commun par campus
+INSERT INTO campus_wallets (campus_name) VALUES ('Paris'), ('Lyon'), ('Bordeaux')
+ON CONFLICT (campus_name) DO NOTHING;
+
+COMMENT ON TABLE campus_wallets IS 'Portefeuilles collectifs de campus (pot commun inter-campus)';
+
+-- =============================================================================
+-- COLONNE admin_campus sur users
+-- =============================================================================
+-- NULL = user normal, 'Lyon' = admin du campus Lyon
+
+ALTER TABLE users ADD COLUMN admin_campus VARCHAR(100);
+
+-- =============================================================================
+-- RPC: contribute_to_campus_wallet
+-- =============================================================================
+-- Tout user authentifié peut contribuer au pot commun d'un campus
+-- Débite le wallet perso, crédite le campus_wallet
+
+CREATE OR REPLACE FUNCTION contribute_to_campus_wallet(
+    p_from_wallet_id UUID,
+    p_campus_name VARCHAR,
+    p_amount NUMERIC,
+    p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_from_wallet RECORD;
+    v_campus_wallet RECORD;
+BEGIN
+    -- 1. Verrouiller le wallet perso
+    SELECT * INTO v_from_wallet FROM wallets WHERE id = p_from_wallet_id FOR UPDATE;
+
+    IF v_from_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Wallet introuvable');
+    END IF;
+
+    IF v_from_wallet.user_id != auth.uid() THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Non autorisé');
+    END IF;
+
+    IF v_from_wallet.status != 'active' THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Votre wallet est inactif');
+    END IF;
+
+    IF v_from_wallet.balance < p_amount THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Solde insuffisant');
+    END IF;
+
+    -- 2. Verrouiller le campus wallet
+    SELECT * INTO v_campus_wallet FROM campus_wallets WHERE campus_name = p_campus_name FOR UPDATE;
+
+    IF v_campus_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Pot commun campus introuvable');
+    END IF;
+
+    -- 3. Débiter le wallet perso
+    UPDATE wallets SET balance = balance - p_amount WHERE id = p_from_wallet_id;
+
+    -- 4. Créditer le campus wallet
+    UPDATE campus_wallets SET balance = balance + p_amount WHERE campus_name = p_campus_name;
+
+    -- 5. Créer la transaction outgoing pour le user
+    INSERT INTO transactions (
+        user_id, wallet_id, provider, amount, currency,
+        transaction_type, direction, status, request_id
+    ) VALUES (
+        v_from_wallet.user_id,
+        p_from_wallet_id,
+        'campus_pool',
+        p_amount,
+        'EUR',
+        'transfer',
+        'outgoing',
+        'approved',
+        p_request_id
+    );
+
+    RETURN jsonb_build_object('success', true, 'error_message', NULL);
+END;
+$$;
+
+-- =============================================================================
+-- RPC: distribute_from_campus_wallet
+-- =============================================================================
+-- Seul un admin campus peut redistribuer depuis le pot commun vers un user de son campus
+
+CREATE OR REPLACE FUNCTION distribute_from_campus_wallet(
+    p_campus_name VARCHAR,
+    p_to_user_id UUID,
+    p_amount NUMERIC,
+    p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_admin_campus VARCHAR;
+    v_campus_wallet RECORD;
+    v_to_wallet RECORD;
+BEGIN
+    -- 1. Vérifier que l'appelant est admin du campus
+    SELECT admin_campus INTO v_admin_campus FROM users WHERE id = auth.uid();
+
+    IF v_admin_campus IS NULL OR v_admin_campus != p_campus_name THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Non autorisé : vous n''êtes pas admin de ce campus');
+    END IF;
+
+    -- 2. Verrouiller le campus wallet
+    SELECT * INTO v_campus_wallet FROM campus_wallets WHERE campus_name = p_campus_name FOR UPDATE;
+
+    IF v_campus_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Pot commun campus introuvable');
+    END IF;
+
+    IF v_campus_wallet.balance < p_amount THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Solde du pot commun insuffisant');
+    END IF;
+
+    -- 3. Résoudre le wallet actif du destinataire
+    SELECT w.* INTO v_to_wallet FROM wallets w
+    INNER JOIN users u ON u.id = w.user_id
+    WHERE w.user_id = p_to_user_id AND w.status = 'active' AND w.campus = u.campus
+    LIMIT 1;
+
+    IF v_to_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'error_message', 'Wallet du destinataire introuvable');
+    END IF;
+
+    -- 4. Débiter le campus wallet
+    UPDATE campus_wallets SET balance = balance - p_amount WHERE campus_name = p_campus_name;
+
+    -- 5. Créditer le wallet du destinataire
+    UPDATE wallets SET balance = balance + p_amount WHERE id = v_to_wallet.id;
+
+    -- 6. Créer la transaction incoming pour le destinataire
+    INSERT INTO transactions (
+        user_id, wallet_id, provider, amount, currency,
+        transaction_type, direction, status, request_id
+    ) VALUES (
+        p_to_user_id,
+        v_to_wallet.id,
+        'campus_pool',
+        p_amount,
+        'EUR',
+        'transfer',
+        'incoming',
+        'approved',
+        p_request_id
+    );
+
+    RETURN jsonb_build_object('success', true, 'error_message', NULL);
+END;
+$$;
+
+-- =============================================================================
+-- RPC: admin_deposit_to_campus
+-- =============================================================================
+-- Un admin campus peut déposer directement de l'argent (carte bancaire) sur le
+-- pot commun de son campus, sans passer par son wallet perso.
+
+CREATE OR REPLACE FUNCTION admin_deposit_to_campus(
+    p_campus_name VARCHAR,
+    p_amount NUMERIC,
+    p_request_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_admin_campus VARCHAR;
+    v_campus_wallet RECORD;
+    v_tx_id UUID;
+BEGIN
+    -- 0. Idempotence : si ce request_id existe déjà, retourner le résultat
+    SELECT id INTO v_tx_id FROM transactions WHERE request_id = p_request_id;
+    IF v_tx_id IS NOT NULL THEN
+        RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
+    END IF;
+
+    -- 1. Vérifier que l'appelant est admin du campus demandé
+    SELECT admin_campus INTO v_admin_campus FROM users WHERE id = auth.uid();
+
+    IF v_admin_campus IS NULL OR v_admin_campus != p_campus_name THEN
+        RETURN jsonb_build_object('success', false, 'transaction_id', NULL, 'error_message', 'Non autorisé : vous n''êtes pas admin de ce campus');
+    END IF;
+
+    -- 2. Vérifier le montant
+    IF p_amount <= 0 THEN
+        RETURN jsonb_build_object('success', false, 'transaction_id', NULL, 'error_message', 'Montant invalide');
+    END IF;
+
+    -- 3. Verrouiller et créditer le campus wallet
+    SELECT * INTO v_campus_wallet FROM campus_wallets WHERE campus_name = p_campus_name FOR UPDATE;
+
+    IF v_campus_wallet.id IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'transaction_id', NULL, 'error_message', 'Pot commun campus introuvable');
+    END IF;
+
+    UPDATE campus_wallets SET balance = balance + p_amount WHERE campus_name = p_campus_name;
+
+    -- 4. Créer la transaction (deposit incoming sur le campus, lié à l'admin)
+    v_tx_id := uuid_generate_v4();
+
+    -- On a besoin d'un wallet_id pour la FK — on utilise le wallet perso de l'admin
+    INSERT INTO transactions (
+        id, user_id, wallet_id, provider, amount, currency,
+        transaction_type, direction, status, request_id
+    )
+    SELECT
+        v_tx_id,
+        auth.uid(),
+        w.id,
+        'campus_admin_deposit',
+        p_amount,
+        'EUR',
+        'deposit',
+        'incoming',
+        'approved',
+        p_request_id
+    FROM wallets w
+    INNER JOIN users u ON u.id = w.user_id
+    WHERE w.user_id = auth.uid() AND w.status = 'active' AND w.campus = u.campus
+    LIMIT 1;
+
+    RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
+END;
+$$;
+
+-- =============================================================================
 -- FONCTIONS RGPD
 -- =============================================================================
 

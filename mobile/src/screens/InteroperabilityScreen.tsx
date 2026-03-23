@@ -120,7 +120,7 @@ export default function InteroperabilityScreen() {
 
   const handleNext = () => {
     light();
-    Alert.alert('Multi-Campus', 'Fonctionnalité de transfert inter-campus à venir.');
+    navigation.navigate('InterCampusTransfer');
   };
 
   const handleSupport = () => {

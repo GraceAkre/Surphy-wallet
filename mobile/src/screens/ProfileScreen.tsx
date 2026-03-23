@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -26,11 +27,12 @@ import {
   X,
   Download,
   Trash2,
+  Camera,
   LucideIcon,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser, updateUserProfile, exportMyData, deleteMyAccount } from '../lib/api';
+import { getCurrentUser, updateUserProfile, uploadAvatar, deleteAvatar, exportMyData, deleteMyAccount } from '../lib/api';
 import type { User as UserType } from '../lib/types';
 
 // Components
@@ -61,7 +63,12 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const [user, setUser] = useState<UserType | null>(null);
 
   const [campusModalVisible, setCampusModalVisible] = useState(false);
+  const [editProfileVisible, setEditProfileVisible] = useState(false);
+  const [editFirstname, setEditFirstname] = useState('');
+  const [editLastname, setEditLastname] = useState('');
+  const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [notifSettings, setNotifSettings] = useState({
     suspicious: true,
@@ -176,6 +183,38 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
     setCampusModalVisible(false);
   };
 
+  const handleOpenEditProfile = () => {
+    if (!user) return;
+    setEditFirstname(user.firstname ?? '');
+    setEditLastname(user.lastname ?? '');
+    setEditProfileVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    const trimmedFirst = editFirstname.trim();
+    const trimmedLast = editLastname.trim();
+
+    if (!trimmedFirst) {
+      Alert.alert('Erreur', 'Le prénom ne peut pas être vide.');
+      return;
+    }
+
+    setSaving(true);
+    const result = await updateUserProfile(user.id, {
+      firstname: trimmedFirst,
+      lastname: trimmedLast,
+    });
+
+    if (result.success) {
+      setUser({ ...user, firstname: trimmedFirst, lastname: trimmedLast });
+      setEditProfileVisible(false);
+    } else {
+      Alert.alert('Erreur', result.errorMessage || 'Impossible de modifier le profil.');
+    }
+    setSaving(false);
+  };
+
   const handleDownloadData = () => {
     Alert.alert(
       'Télécharger mes données',
@@ -253,6 +292,58 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         },
       ]
     );
+  };
+
+  // Avatar handlers
+  const handleAvatarPress = () => {
+    if (!user) return;
+
+    const options: { text: string; onPress?: () => void; style?: 'cancel' | 'destructive' }[] = [
+      {
+        text: 'Choisir une photo',
+        onPress: async () => {
+          const ImagePicker = await import('expo-image-picker');
+          const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+
+          if (result.canceled || !result.assets?.[0]?.uri) return;
+
+          setUploadingAvatar(true);
+          const uploadResult = await uploadAvatar(user.id, result.assets[0].uri);
+          if (uploadResult.success && uploadResult.avatarUrl) {
+            setUser({ ...user, avatar_url: uploadResult.avatarUrl });
+          } else {
+            Alert.alert('Erreur', uploadResult.errorMessage || 'Impossible de mettre à jour la photo');
+          }
+          setUploadingAvatar(false);
+        },
+      },
+    ];
+
+    if (user.avatar_url) {
+      options.push({
+        text: 'Supprimer la photo',
+        style: 'destructive',
+        onPress: async () => {
+          setUploadingAvatar(true);
+          const result = await deleteAvatar(user.id);
+          if (result.success) {
+            setUser({ ...user, avatar_url: null });
+          } else {
+            Alert.alert('Erreur', result.errorMessage || 'Impossible de supprimer la photo');
+          }
+          setUploadingAvatar(false);
+        },
+      });
+    }
+
+    options.push({ text: 'Annuler', style: 'cancel' });
+
+    Alert.alert('Photo de profil', undefined, options);
   };
 
   // --- Components ---
@@ -395,18 +486,29 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
         {/* Profile Card */}
         <Card variant="elevated" padding="lg" className="mx-screen mb-6 mt-2 items-center">
           {/* Avatar */}
-          <View className="mb-4 relative">
+          <Pressable onPress={handleAvatarPress} className="mb-4 relative">
             <Avatar
               size="xl"
               name={`${user.firstname ?? ''} ${user.lastname ?? ''}`.trim()}
+              imageUrl={user.avatar_url}
             />
+            {/* Loading overlay */}
+            {uploadingAvatar && (
+              <View className="absolute inset-0 rounded-full bg-black/40 items-center justify-center">
+                <ActivityIndicator color="white" />
+              </View>
+            )}
+            {/* Camera Badge */}
+            <View className="absolute -bottom-0 -left-0 bg-primary w-8 h-8 rounded-full border-2 border-white items-center justify-center">
+              <Camera size={14} color="#FFFFFF" />
+            </View>
             {/* Campus Badge */}
             <View className="absolute -bottom-0 -right-0 bg-primary-600 w-8 h-8 rounded-lg border-2 border-white items-center justify-center">
               <Text className="text-white text-caption2 font-bold">
                 {getCampusCode(user.campus)}
               </Text>
             </View>
-          </View>
+          </Pressable>
 
           <Text className="text-title1 text-ink-primary mb-1">
             {`${user.firstname ?? ''} ${user.lastname ?? ''}`.trim() || 'Utilisateur'}
@@ -426,7 +528,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           )}
 
           <Pressable
-            onPress={() => Alert.alert('Modifier le profil', 'Fonctionnalité à venir')}
+            onPress={handleOpenEditProfile}
             style={({ pressed }) => [
               shadows.primaryButton,
               { opacity: pressed ? 0.9 : 1 },
@@ -527,6 +629,105 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
           Version 1.0.0 (Build 24)
         </Text>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editProfileVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setEditProfileVisible(false)}
+      >
+        <SafeAreaView className="flex-1 bg-background">
+          <View className="flex-row items-center justify-between px-screen py-4 border-b border-separator-opaque/50">
+            <Pressable onPress={() => setEditProfileVisible(false)}>
+              <Text className="text-body text-primary">Annuler</Text>
+            </Pressable>
+            <Text className="text-headline font-semibold text-ink-primary">
+              Modifier le profil
+            </Text>
+            <View className="w-16" />
+          </View>
+
+          <View className="px-screen pt-6">
+            {/* Avatar preview */}
+            <Pressable onPress={handleAvatarPress} className="items-center mb-8">
+              <View className="relative">
+                <Avatar
+                  size="xl"
+                  name={`${editFirstname} ${editLastname}`.trim()}
+                  imageUrl={user.avatar_url}
+                />
+                {uploadingAvatar && (
+                  <View className="absolute inset-0 rounded-full bg-black/40 items-center justify-center">
+                    <ActivityIndicator color="white" />
+                  </View>
+                )}
+              </View>
+              <Text className="text-caption1 text-primary mt-3 font-medium">
+                Changer la photo
+              </Text>
+            </Pressable>
+
+            {/* Firstname */}
+            <View className="mb-5">
+              <Text className="text-caption1 text-ink-tertiary mb-2 font-medium">Prénom</Text>
+              <View
+                className="bg-surface border-2 border-separator-opaque rounded-xl px-4"
+                style={{ height: 52 }}
+              >
+                <TextInput
+                  value={editFirstname}
+                  onChangeText={setEditFirstname}
+                  placeholder="Prénom"
+                  placeholderTextColor="#86868B"
+                  autoCapitalize="words"
+                  className="flex-1 text-ink-primary"
+                  style={{ fontSize: 17 }}
+                />
+              </View>
+            </View>
+
+            {/* Lastname */}
+            <View className="mb-8">
+              <Text className="text-caption1 text-ink-tertiary mb-2 font-medium">Nom</Text>
+              <View
+                className="bg-surface border-2 border-separator-opaque rounded-xl px-4"
+                style={{ height: 52 }}
+              >
+                <TextInput
+                  value={editLastname}
+                  onChangeText={setEditLastname}
+                  placeholder="Nom"
+                  placeholderTextColor="#86868B"
+                  autoCapitalize="words"
+                  className="flex-1 text-ink-primary"
+                  style={{ fontSize: 17 }}
+                />
+              </View>
+            </View>
+
+            {/* Save button */}
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={saving || !editFirstname.trim()}
+              style={({ pressed }) => [
+                shadows.primaryButton,
+                {
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                  opacity: saving || !editFirstname.trim() ? 0.5 : 1,
+                },
+              ]}
+              className="bg-primary rounded-button py-4 items-center"
+            >
+              {saving ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <Text className="text-headline text-white font-semibold">Enregistrer</Text>
+              )}
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       {/* Campus Selection Modal */}
       <Modal

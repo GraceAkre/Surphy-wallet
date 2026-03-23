@@ -35,8 +35,9 @@ import {
   getMoneyRequestsForUser,
   acceptMoneyRequest,
   declineMoneyRequest,
+  getCampusWallets,
 } from '../lib/api';
-import type { User, Wallet, Transaction, MoneyRequest } from '../lib/types';
+import type { User, Wallet, Transaction, MoneyRequest, CampusWallet } from '../lib/types';
 
 // --- Types ---
 
@@ -49,6 +50,7 @@ type RootStackParamList = {
   Receive: undefined;
   Deposit: undefined;
   Interoperability: undefined;
+  InterCampusTransfer: undefined;
 };
 
 type HomeScreenProps = {
@@ -70,6 +72,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
   const [suspiciousTransaction, setSuspiciousTransaction] = useState<Transaction | null>(null);
   const [pendingRequests, setPendingRequests] = useState<MoneyRequest[]>([]);
   const [declinedRequests, setDeclinedRequests] = useState<MoneyRequest[]>([]);
+  const [adminCampusWalletBalance, setAdminCampusWalletBalance] = useState<number | null>(null);
 
   // Money request popup
   const [requestPopupVisible, setRequestPopupVisible] = useState(false);
@@ -101,6 +104,19 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       setSuspiciousTransaction(firstSuspicious);
       setPendingRequests(moneyRequests);
       setDeclinedRequests(declinedReqs);
+
+      // Fetch admin campus wallet balance (silent fallback)
+      if (currentUser.admin_campus) {
+        try {
+          const campusWallets = await getCampusWallets();
+          const adminWallet = campusWallets.find(
+            (cw) => cw.campus_name === currentUser.admin_campus
+          );
+          setAdminCampusWalletBalance(adminWallet?.balance ?? null);
+        } catch {
+          // Table may not exist yet — silently ignore
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -320,6 +336,39 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
           <ChevronRight size={20} color="#3B82F6" />
         </Pressable>
+
+        {/* Admin Campus Wallet Banner */}
+        {user?.admin_campus && (
+          <Pressable
+            onPress={() => {
+              light();
+              navigation.navigate('InterCampusTransfer' as any);
+            }}
+            style={({ pressed }) => [
+              shadows.card,
+              { transform: [{ scale: pressed ? 0.98 : 1 }] },
+            ]}
+            className="mx-screen mb-6 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5 flex-row items-center"
+          >
+            <View className="w-10 h-10 rounded-xl bg-amber-100 items-center justify-center mr-3">
+              <Building2 size={20} color="#D97706" />
+            </View>
+            <View className="flex-1">
+              <Text className="text-subheadline font-semibold text-ink-primary">
+                Pot commun {user.admin_campus}
+              </Text>
+              <Text className="text-caption1 text-ink-tertiary">
+                Vous êtes admin de ce campus
+              </Text>
+            </View>
+            {adminCampusWalletBalance !== null && (
+              <Text className="text-subheadline font-bold text-amber-600 mr-2">
+                {formatCurrency(adminCampusWalletBalance)}
+              </Text>
+            )}
+            <ChevronRight size={20} color="#D97706" />
+          </Pressable>
+        )}
 
         {/* Alert Banner */}
         {hasSuspiciousAlert && suspiciousTransaction && (

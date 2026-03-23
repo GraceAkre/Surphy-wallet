@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronLeft, CreditCard, Lock } from 'lucide-react-native';
+import { ChevronLeft, CreditCard, Lock, Wallet, Building2 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Components
@@ -23,7 +23,8 @@ import { formatCurrency, formatAmountInput } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
-import { getCurrentUser, getUserWallet, depositFunds } from '../lib/api';
+import { getCurrentUser, getUserWallet, depositFunds, getCampusWallets, adminDepositToCampus } from '../lib/api';
+import type { User } from '../lib/types';
 
 // --- Types ---
 
@@ -49,6 +50,11 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
   const [isFocused, setIsFocused] = useState(false);
   const [selectedQuickAmount, setSelectedQuickAmount] = useState<number | null>(null);
 
+  // Admin campus deposit
+  const [user, setUser] = useState<User | null>(null);
+  const [depositTarget, setDepositTarget] = useState<'personal' | 'campus'>('personal');
+  const [campusBalance, setCampusBalance] = useState(0);
+
   // Card fields (simulated)
   const [cardNumber, setCardNumber] = useState('');
   const [cardExpiry, setCardExpiry] = useState('');
@@ -56,12 +62,23 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
 
   useEffect(() => {
     async function loadData() {
-      const user = await getCurrentUser();
-      if (user) {
-        const wallet = await getUserWallet(user.id);
+      const currentUser = await getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        const wallet = await getUserWallet(currentUser.id);
         if (wallet) {
           setBalance(wallet.balance);
           setWalletId(wallet.id);
+        }
+        // Si admin campus, charger le solde du pot commun
+        if (currentUser.admin_campus) {
+          const campusWallets = await getCampusWallets();
+          const myCampusWallet = campusWallets.find(
+            (cw) => cw.campus_name === currentUser.admin_campus
+          );
+          if (myCampusWallet) {
+            setCampusBalance(myCampusWallet.balance);
+          }
         }
       }
     }
@@ -107,7 +124,9 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
   };
 
   const handleDeposit = async () => {
-    if (!isValid || !walletId) return;
+    if (!isValid) return;
+    if (depositTarget === 'personal' && !walletId) return;
+    if (depositTarget === 'campus' && !user?.admin_campus) return;
 
     setIsLoading(true);
     light();
@@ -116,7 +135,9 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     try {
-      const result = await depositFunds(walletId, numericAmount);
+      const result = depositTarget === 'campus'
+        ? await adminDepositToCampus(user!.admin_campus!, numericAmount)
+        : await depositFunds(walletId!, numericAmount);
 
       if (result.success && result.transactionId) {
         success();
@@ -159,13 +180,51 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Admin Deposit Target Selector */}
+          {user?.admin_campus && (
+            <View className="flex-row gap-3 mt-4 mb-4">
+              <Pressable
+                onPress={() => { light(); setDepositTarget('personal'); }}
+                style={depositTarget === 'personal' ? shadows.soft : undefined}
+                className={`
+                  flex-1 flex-row items-center justify-center rounded-button px-4 py-3 border-2
+                  ${depositTarget === 'personal'
+                    ? 'bg-primary border-primary'
+                    : 'bg-surface border-separator-opaque'
+                  }
+                `}
+              >
+                <Wallet size={18} color={depositTarget === 'personal' ? '#FFFFFF' : '#1D1D1F'} style={{ marginRight: 8 }} />
+                <Text className={`text-subheadline font-semibold ${depositTarget === 'personal' ? 'text-white' : 'text-ink-primary'}`}>
+                  Mon wallet
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => { light(); setDepositTarget('campus'); }}
+                style={depositTarget === 'campus' ? shadows.soft : undefined}
+                className={`
+                  flex-1 flex-row items-center justify-center rounded-button px-4 py-3 border-2
+                  ${depositTarget === 'campus'
+                    ? 'bg-primary border-primary'
+                    : 'bg-surface border-separator-opaque'
+                  }
+                `}
+              >
+                <Building2 size={18} color={depositTarget === 'campus' ? '#FFFFFF' : '#1D1D1F'} style={{ marginRight: 8 }} />
+                <Text className={`text-subheadline font-semibold ${depositTarget === 'campus' ? 'text-white' : 'text-ink-primary'}`}>
+                  {user.admin_campus}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+
           {/* Balance Card */}
-          <Card variant="elevated" padding="lg" className="mb-6 mt-4">
+          <Card variant="elevated" padding="lg" className={`mb-6 ${user?.admin_campus ? '' : 'mt-4'}`}>
             <Text className="text-footnote text-ink-tertiary mb-2">
-              Solde actuel
+              {depositTarget === 'campus' ? `Pot commun ${user?.admin_campus}` : 'Mon wallet'}
             </Text>
             <Text className="text-largeTitle text-ink-primary">
-              {formatCurrency(balance)}
+              {formatCurrency(depositTarget === 'campus' ? campusBalance : balance)}
             </Text>
           </Card>
 

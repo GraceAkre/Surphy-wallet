@@ -12,6 +12,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Send, MessageCircle, RotateCcw } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList } from '../App';
 import { SUPPORT_TREE } from '../lib/supportTree';
 import { shadows } from '../utils/shadows';
@@ -19,6 +20,7 @@ import { useHaptics } from '../hooks/useHaptics';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SupportChat'>;
+  route: RouteProp<RootStackParamList, 'SupportChat'>;
 };
 
 type ChatMessage = {
@@ -34,22 +36,25 @@ function nextId(): string {
   return `msg-${messageCounter}-${Date.now()}`;
 }
 
-export default function SupportChatScreen({ navigation }: Props) {
+export default function SupportChatScreen({ navigation, route }: Props) {
   const { light } = useHaptics();
   const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
 
-  const welcomeNode = SUPPORT_TREE['welcome'];
+  const initialNodeId = route.params?.initialNodeId;
+  const startNodeId =
+    initialNodeId && SUPPORT_TREE[initialNodeId] ? initialNodeId : 'welcome';
+  const startNode = SUPPORT_TREE[startNodeId];
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: nextId(),
-      text: welcomeNode.botMessage,
+      text: startNode.botMessage,
       sender: 'bot',
       timestamp: new Date(),
     },
   ]);
-  const [currentNodeId, setCurrentNodeId] = useState('welcome');
+  const [currentNodeId, setCurrentNodeId] = useState(startNodeId);
   const [freeText, setFreeText] = useState('');
 
   const currentNode = SUPPORT_TREE[currentNodeId];
@@ -116,6 +121,7 @@ export default function SupportChatScreen({ navigation }: Props) {
 
   const handleRestart = useCallback(() => {
     light();
+    const welcomeNode = SUPPORT_TREE['welcome'];
     const botMsg: ChatMessage = {
       id: nextId(),
       text: welcomeNode.botMessage,
@@ -124,7 +130,7 @@ export default function SupportChatScreen({ navigation }: Props) {
     };
     setCurrentNodeId('welcome');
     addMessages([botMsg]);
-  }, [light, addMessages, welcomeNode.botMessage]);
+  }, [light, addMessages]);
 
   const renderMessage = useCallback(
     ({ item }: { item: ChatMessage }) => {
@@ -166,7 +172,7 @@ export default function SupportChatScreen({ navigation }: Props) {
   );
 
   const showOptions = currentNode?.options && !currentNode.isFinal;
-  const showFreeTextInput = currentNodeId === 'other_freetext';
+  const showFreeTextInput = currentNodeId === 'other_freetext' || currentNodeId === 'card_other_freetext';
   const showRestart = currentNode?.isFinal;
 
   return (
