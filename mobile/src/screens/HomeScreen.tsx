@@ -162,7 +162,8 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         selectedRequest.id,
         wallet.id,
         selectedRequest.requester_id,
-        selectedRequest.amount
+        selectedRequest.amount,
+        user || undefined,
       );
       if (result.success) {
         Alert.alert('Virement effectué', `${formatCurrency(selectedRequest.amount)} envoyé à ${selectedRequest.requester_name}.`);
@@ -427,7 +428,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
         <View className="px-screen">
           <Section
             title="Activités récentes"
-            onAction={() => console.log('Voir tout')}
+            onAction={() => navigation.navigate('History' as any)}
           >
             <TransactionList
               transactions={transactions}

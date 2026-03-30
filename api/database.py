@@ -393,6 +393,18 @@ class SupabaseClient:
         )
         return response.data or []
 
+    async def fetch_ml_config(self) -> dict[str, Any] | None:
+        """Récupère la configuration ML active (seuils de décision)."""
+        client = self._get_client()
+        response = (
+            client.table("ml_config")
+            .select("preset, threshold_approve, threshold_block")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+
 
 # =============================================================================
 # FACTORY & CONTEXT MANAGER

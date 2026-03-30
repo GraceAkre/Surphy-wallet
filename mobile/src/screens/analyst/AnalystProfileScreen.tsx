@@ -20,6 +20,8 @@ import {
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
 import { getCurrentUser } from '../../lib/api';
+import { getMLConfig, updateMLConfig, ML_PRESETS } from '../../lib/analystApi';
+import type { MLConfig } from '../../lib/analystApi';
 import type { User } from '../../lib/types';
 
 // Components
@@ -47,11 +49,21 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
     highRisk: true,
     weekly: false,
   });
+  const [mlConfig, setMlConfig] = useState<MLConfig>({
+    preset: 'normal',
+    threshold_approve: 30,
+    threshold_block: 70,
+  });
+  const [mlSaving, setMlSaving] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const currentUser = await getCurrentUser();
+      const [currentUser, config] = await Promise.all([
+        getCurrentUser(),
+        getMLConfig(),
+      ]);
       setUser(currentUser);
+      setMlConfig(config);
     } catch (error) {
       console.error('Error fetching user:', error);
     } finally {
@@ -307,6 +319,69 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
             isLast
           />
         </MenuCard>
+
+        {/* Sensibilité ML */}
+        <SectionTitle title="Sensibilité ML" />
+        <Card variant="elevated" padding="lg" className="mx-screen mb-6">
+          <Text className="text-footnote text-ink-secondary mb-4">
+            Ajustez la sensibilité de la détection de fraude. Un mode strict bloquera plus de transactions suspectes.
+          </Text>
+
+          <View className="flex-row gap-2 mb-4">
+            {(['souple', 'normal', 'strict'] as const).map((preset) => {
+              const isActive = mlConfig.preset === preset;
+              const labels = { souple: 'Souple', normal: 'Normal', strict: 'Strict' };
+              const colors = {
+                souple: isActive ? 'bg-green-500' : 'bg-surface-secondary',
+                normal: isActive ? 'bg-primary' : 'bg-surface-secondary',
+                strict: isActive ? 'bg-danger' : 'bg-surface-secondary',
+              };
+              return (
+                <Pressable
+                  key={preset}
+                  onPress={async () => {
+                    if (mlSaving || isActive) return;
+                    selection();
+                    setMlSaving(true);
+                    const thresholds = ML_PRESETS[preset];
+                    const res = await updateMLConfig(preset, thresholds.threshold_approve, thresholds.threshold_block);
+                    if (res.success) {
+                      setMlConfig({ preset, ...thresholds });
+                    } else {
+                      Alert.alert('Erreur', res.errorMessage || 'Impossible de sauvegarder.');
+                    }
+                    setMlSaving(false);
+                  }}
+                  className={`flex-1 py-3 rounded-button items-center ${colors[preset]}`}
+                >
+                  <Text className={`text-footnote font-semibold ${isActive ? 'text-white' : 'text-ink-secondary'}`}>
+                    {labels[preset]}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Seuils actuels */}
+          <View className="flex-row justify-between">
+            <View className="items-center flex-1">
+              <Text className="text-caption2 text-ink-tertiary">Approve</Text>
+              <Text className="text-footnote text-ink-primary font-medium">{'< '}{mlConfig.threshold_approve}</Text>
+            </View>
+            <View className="items-center flex-1">
+              <Text className="text-caption2 text-ink-tertiary">Review</Text>
+              <Text className="text-footnote text-ink-primary font-medium">{mlConfig.threshold_approve}-{mlConfig.threshold_block - 1}</Text>
+            </View>
+            <View className="items-center flex-1">
+              <Text className="text-caption2 text-ink-tertiary">Block</Text>
+              <Text className="text-footnote text-ink-primary font-medium">{'>= '}{mlConfig.threshold_block}</Text>
+            </View>
+          </View>
+
+          {mlSaving && (
+            <ActivityIndicator size="small" color="#3B82F6" className="mt-3" />
+          )}
+        </Card>
 
         {/* Support */}
         <Pressable

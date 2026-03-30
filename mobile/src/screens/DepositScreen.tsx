@@ -136,8 +136,8 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
 
     try {
       const result = depositTarget === 'campus'
-        ? await adminDepositToCampus(user!.admin_campus!, numericAmount)
-        : await depositFunds(walletId!, numericAmount);
+        ? await adminDepositToCampus(user!.admin_campus!, numericAmount, user || undefined)
+        : await depositFunds(walletId!, numericAmount, user || undefined);
 
       if (result.success && result.transactionId) {
         success();

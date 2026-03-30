@@ -23,7 +23,7 @@ from fastapi.responses import JSONResponse
 load_dotenv(dotenv_path=".env.local")
 
 from api.database import get_db_session, DatabaseError
-from ml.engine import FraudDetectionEngine
+from ml.xgboost_engine import HybridFraudEngine
 from shared.models import (
     MLAnalysisRequest,
     MLAnalysisResponse,
@@ -61,9 +61,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting Smart Wallet IA API v{API_VERSION}")
     logger.info(f"Environment: {ENVIRONMENT}")
 
-    # Initialise le moteur ML
-    app.state.ml_engine = FraudDetectionEngine()
-    logger.info("ML Engine initialized")
+    # Initialise le moteur ML hybride (XGBoost + règles R1-R9)
+    app.state.ml_engine = HybridFraudEngine(model_dir="ml_model/")
+    logger.info("Hybrid ML Engine (XGBoost + R1-R9) initialized")
 
     yield
 
@@ -318,9 +318,19 @@ async def analyze_transaction(
     start_time = time.perf_counter()
 
     # Récupère le moteur ML
-    engine: FraudDetectionEngine = app.state.ml_engine
+    engine: HybridFraudEngine = app.state.ml_engine
 
-    # Charge le contexte utilisateur (service_role pour bypass RLS)
+    # Charge la config ML et les seuils dynamiques (service_role pour bypass RLS)
+    async with get_db_session(request_id=request_id, service_role=True) as db:
+        # Charge les seuils ML depuis la BDD
+        ml_config = await db.fetch_ml_config()
+        if ml_config:
+            engine.update_thresholds(
+                ml_config.get("threshold_approve", 30),
+                ml_config.get("threshold_block", 70),
+            )
+
+    # Charge le contexte utilisateur
     async with get_db_session(request_id=request_id, service_role=True) as db:
         # Récupère les données nécessaires pour l'analyse
         user = await db.fetch_user(payload.user_id)
@@ -356,8 +366,8 @@ async def analyze_transaction(
         "daily_total": daily_total,
     }
 
-    # Exécute l'analyse
-    result = engine.analyze(payload, context)
+    # Exécute l'analyse (moteur hybride async)
+    result = await engine.analyze(payload, context)
 
     # Calcule la latence
     latency_ms = int((time.perf_counter() - start_time) * 1000)

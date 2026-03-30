@@ -1,6 +1,35 @@
 // Services API pour fetcher les données depuis Supabase
 import { supabase } from './supabase';
 import type { User, Wallet, Transaction, Peer, CardDetails, MoneyRequest, CampusWallet } from './types';
+import { buildMLPayload } from './geoContext';
+import { scoreTransaction, applyMLResult } from './mlClient';
+
+/**
+ * Score une transaction via le moteur ML et met à jour la BDD
+ * Silencieux en cas d'erreur — ne bloque jamais le flux principal
+ */
+async function scoreAndUpdate(
+  transactionId: string,
+  amount: number,
+  txType: string,
+  user: User,
+): Promise<void> {
+  try {
+    const payload = buildMLPayload(user, transactionId, amount, txType);
+    const result = await scoreTransaction(payload);
+    if (result) {
+      await applyMLResult(
+        transactionId,
+        payload.country,
+        payload.city,
+        payload.merchant_id,
+        result,
+      );
+    }
+  } catch (err) {
+    console.warn('ML scoring skipped:', err);
+  }
+}
 
 /**
  * Récupère l'utilisateur courant via Supabase Auth
@@ -440,7 +469,8 @@ export async function getFirstSuspiciousTransaction(userId: string): Promise<Tra
 export async function transferFunds(
   fromWalletId: string,
   toUserId: string,
-  amount: number
+  amount: number,
+  user?: User,
 ): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
   // 1. Générer un request_id unique (idempotence)
   const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -462,6 +492,11 @@ export async function transferFunds(
   }
 
   const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
+
+  // 3. Scoring ML (silencieux)
+  if (result.success && result.transaction_id && user) {
+    await scoreAndUpdate(result.transaction_id, amount, 'transfer', user);
+  }
 
   return {
     success: result.success,
@@ -525,7 +560,8 @@ export function generateCardDetails(wallet: Wallet, user: User): CardDetails {
  */
 export async function depositFunds(
   walletId: string,
-  amount: number
+  amount: number,
+  user?: User,
 ): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
   // Générer un request_id unique (idempotence)
   const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -545,6 +581,11 @@ export async function depositFunds(
   }
 
   const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
+
+  // Scoring ML (silencieux)
+  if (result.success && result.transaction_id && user) {
+    await scoreAndUpdate(result.transaction_id, amount, 'deposit', user);
+  }
 
   return {
     success: result.success,
@@ -696,10 +737,11 @@ export async function acceptMoneyRequest(
   requestId: string,
   fromWalletId: string,
   toUserId: string,
-  amount: number
+  amount: number,
+  user?: User,
 ): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
-  // 1. Effectuer le virement
-  const transferResult = await transferFunds(fromWalletId, toUserId, amount);
+  // 1. Effectuer le virement (avec scoring ML si user fourni)
+  const transferResult = await transferFunds(fromWalletId, toUserId, amount, user);
 
   if (!transferResult.success) {
     return transferResult;
@@ -828,7 +870,8 @@ export async function deleteMyAccount(): Promise<{
  */
 export async function adminDepositToCampus(
   campusName: string,
-  amount: number
+  amount: number,
+  user?: User,
 ): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
   const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -847,6 +890,11 @@ export async function adminDepositToCampus(
   }
 
   const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
+
+  // Scoring ML (silencieux)
+  if (result.success && result.transaction_id && user) {
+    await scoreAndUpdate(result.transaction_id, amount, 'admin_deposit', user);
+  }
 
   return {
     success: result.success,
@@ -1018,8 +1066,9 @@ export async function getCampusWallets(): Promise<CampusWallet[]> {
 export async function contributeToCampusWallet(
   fromWalletId: string,
   campusName: string,
-  amount: number
-): Promise<{ success: boolean; errorMessage: string | null }> {
+  amount: number,
+  user?: User,
+): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
   const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
@@ -1034,11 +1083,17 @@ export async function contributeToCampusWallet(
 
   if (error) {
     console.error('Contribute RPC error:', error);
-    return { success: false, errorMessage: error.message };
+    return { success: false, transactionId: null, errorMessage: error.message };
   }
 
-  const result = data as { success: boolean; error_message: string | null };
-  return { success: result.success, errorMessage: result.error_message };
+  const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
+
+  // Scoring ML (silencieux)
+  if (result.success && result.transaction_id && user) {
+    await scoreAndUpdate(result.transaction_id, amount, 'campus_contribute', user);
+  }
+
+  return { success: result.success, transactionId: result.transaction_id, errorMessage: result.error_message };
 }
 
 /**
@@ -1048,8 +1103,9 @@ export async function contributeToCampusWallet(
 export async function distributeFromCampusWallet(
   campusName: string,
   toUserId: string,
-  amount: number
-): Promise<{ success: boolean; errorMessage: string | null }> {
+  amount: number,
+  user?: User,
+): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
   const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
@@ -1064,11 +1120,17 @@ export async function distributeFromCampusWallet(
 
   if (error) {
     console.error('Distribute RPC error:', error);
-    return { success: false, errorMessage: error.message };
+    return { success: false, transactionId: null, errorMessage: error.message };
   }
 
-  const result = data as { success: boolean; error_message: string | null };
-  return { success: result.success, errorMessage: result.error_message };
+  const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
+
+  // Scoring ML (silencieux)
+  if (result.success && result.transaction_id && user) {
+    await scoreAndUpdate(result.transaction_id, amount, 'campus_distribute', user);
+  }
+
+  return { success: result.success, transactionId: result.transaction_id, errorMessage: result.error_message };
 }
 
 /**

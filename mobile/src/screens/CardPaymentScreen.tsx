@@ -72,6 +72,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserType | null>(null);
 
   // Money request popup state
   const [pendingRequests, setPendingRequests] = useState<MoneyRequest[]>([]);
@@ -85,6 +86,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
       const user = await getCurrentUser();
       if (user) {
         setCurrentUserId(user.id);
+        setCurrentUser(user);
         const [wallet, requests] = await Promise.all([
           getUserWallet(user.id),
           getMoneyRequestsForUser(user.id),
@@ -163,7 +165,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
     light();
 
     try {
-      const result = await transferFunds(walletId, recipient.id, numericAmount);
+      const result = await transferFunds(walletId, recipient.id, numericAmount, currentUser || undefined);
 
       if (result.success && result.transactionId) {
         success();
@@ -190,7 +192,8 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
         currentRequest.id,
         walletId,
         currentRequest.requester_id,
-        currentRequest.amount
+        currentRequest.amount,
+        currentUser || undefined,
       );
       if (result.success) {
         success();

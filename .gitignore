@@ -36,8 +36,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -165,3 +165,10 @@ site/
 
 # Wireframes (PNG)
 mobile/Wireframes surphy-wallet/
+
+# =============================================================================
+# ML MODEL (fichiers binaires lourds)
+# =============================================================================
+ml_model/
+data/
+*.pkl

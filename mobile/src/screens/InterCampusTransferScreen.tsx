@@ -153,7 +153,7 @@ export default function InterCampusTransferScreen() {
     setIsContributing(true);
 
     try {
-      const result = await contributeToCampusWallet(wallet.id, selectedCampus, numAmount);
+      const result = await contributeToCampusWallet(wallet.id, selectedCampus, numAmount, user || undefined);
 
       if (result.success) {
         hapticSuccess();
@@ -213,6 +213,7 @@ export default function InterCampusTransferScreen() {
         user.admin_campus,
         recipient.id,
         numAmount,
+        user || undefined,
       );
 
       if (result.success) {
