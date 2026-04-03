@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,6 +17,7 @@ import {
   Lock,
   Shield,
   HelpCircle,
+  Info,
   LucideIcon,
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
@@ -55,6 +57,7 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
     threshold_block: 70,
   });
   const [mlSaving, setMlSaving] = useState(false);
+  const [mlInfoVisible, setMlInfoVisible] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -321,7 +324,70 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
         </MenuCard>
 
         {/* Sensibilité ML */}
-        <SectionTitle title="Sensibilité ML" />
+        <View className="flex-row items-center justify-between mx-screen mb-4 mt-2">
+          <Text className="text-title2 text-ink-primary">Sensibilité ML</Text>
+          <Pressable onPress={() => setMlInfoVisible(true)} hitSlop={12}>
+            <Info size={20} color="#86868B" />
+          </Pressable>
+        </View>
+
+        {/* Modal info sensibilité ML */}
+        <Modal
+          visible={mlInfoVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMlInfoVisible(false)}
+        >
+          <Pressable
+            className="flex-1 bg-black/50 justify-center items-center px-6"
+            onPress={() => setMlInfoVisible(false)}
+          >
+            <Pressable className="bg-white rounded-2xl p-6 w-full" onPress={() => {}}>
+              <Text className="text-title2 text-ink-primary mb-4">Niveaux de sensibilité</Text>
+
+              <View className="mb-4">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <View className="w-3 h-3 rounded-full bg-green-500" />
+                  <Text className="text-body font-semibold text-ink-primary">Souple</Text>
+                </View>
+                <Text className="text-footnote text-ink-secondary ml-5">
+                  Approve si score {'<'} 50 | Review entre 50-79 | Block si {'>='} 80{'\n'}
+                  Moins de faux positifs, idéal en période calme.
+                </Text>
+              </View>
+
+              <View className="mb-4">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <View className="w-3 h-3 rounded-full bg-blue-500" />
+                  <Text className="text-body font-semibold text-ink-primary">Normal</Text>
+                </View>
+                <Text className="text-footnote text-ink-secondary ml-5">
+                  Approve si score {'<'} 30 | Review entre 30-69 | Block si {'>='} 70{'\n'}
+                  Équilibre entre sécurité et fluidité. Recommandé par défaut.
+                </Text>
+              </View>
+
+              <View className="mb-4">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <View className="w-3 h-3 rounded-full bg-red-500" />
+                  <Text className="text-body font-semibold text-ink-primary">Strict</Text>
+                </View>
+                <Text className="text-footnote text-ink-secondary ml-5">
+                  Approve si score {'<'} 20 | Review entre 20-49 | Block si {'>='} 50{'\n'}
+                  Maximum de sécurité, plus de transactions bloquées/reviewées.
+                </Text>
+              </View>
+
+              <Pressable
+                onPress={() => setMlInfoVisible(false)}
+                className="bg-primary py-3 rounded-button items-center mt-2"
+              >
+                <Text className="text-headline text-white">Compris</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
         <Card variant="elevated" padding="lg" className="mx-screen mb-6">
           <Text className="text-footnote text-ink-secondary mb-4">
             Ajustez la sensibilité de la détection de fraude. Un mode strict bloquera plus de transactions suspectes.

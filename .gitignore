@@ -172,3 +172,6 @@ mobile/Wireframes surphy-wallet/
 ml_model/
 data/
 *.pkl
+
+# Seed data (contient des données spécifiques à l'environnement)
+supabase/seed_transactions.sql

@@ -123,7 +123,7 @@ class HybridFraudEngine:
                     "code": "KYC_EXPIRED",
                     "contribution": 15,
                     "threshold": None,
-                    "actual": kyc_expires.isoformat(),
+                    "actual": None,
                     "message": f"KYC expiré depuis le {kyc_expires.strftime('%d/%m/%Y')}",
                 }
 
@@ -350,6 +350,19 @@ class HybridFraudEngine:
             "SCA_THRESHOLD": "Cumul journalier {actual:.2f}€ > seuil SCA {threshold:.0f}€",
         }
 
+        # Mapping code → flag feature pour vérifier que la règle est réellement active
+        CODE_TO_FLAG = {
+            "AMOUNT_HIGH": "flag_R1_amount_high",
+            "TIME_SUSPICIOUS": "flag_R2_time_suspicious",
+            "LOCATION_CHANGE": "flag_R3_location_change",
+            "VELOCITY_HIGH": "flag_R4_velocity_high",
+            "IP_GEO_MISMATCH": "flag_R5_ip_geo_mismatch",
+            "KYC_EXPIRED": "flag_R6_kyc_expired",
+            "DUPLICATE_REQUEST": "flag_R7_duplicate",
+            "CAMPUS_NOT_ALLOWED": "flag_R8_campus_blocked",
+            "SCA_THRESHOLD": "flag_R9_sca_threshold",
+        }
+
         if self.explainer and self.feature_columns:
             # SHAP-based explanation
             X = np.array([[features[col] for col in self.feature_columns]])
@@ -373,6 +386,15 @@ class HybridFraudEngine:
                     continue  # Ignorer les features sans code R1-R9 valide
                 if code in seen_codes:
                     continue
+
+                # Ne remonter la raison que si la règle correspondante est
+                # réellement déclenchée (flag = 1). SHAP peut attribuer de
+                # l'importance à un flag même quand il vaut 0 à cause des
+                # corrélations apprises sur les données d'entraînement.
+                flag_key = CODE_TO_FLAG.get(code)
+                if flag_key and features.get(flag_key, 0) == 0:
+                    continue
+
                 seen_codes.add(code)
 
                 threshold = THRESHOLDS.get(code)
