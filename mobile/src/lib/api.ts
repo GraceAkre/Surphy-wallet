@@ -2,7 +2,7 @@
 import { supabase } from './supabase';
 import type { User, Wallet, Transaction, Peer, CardDetails, MoneyRequest, CampusWallet } from './types';
 import { buildMLPayload } from './geoContext';
-import { scoreTransaction, applyMLResult } from './mlClient';
+import { scoreTransaction, applyMLResult, ML_API_URL } from './mlClient';
 
 /**
  * Score une transaction via le moteur ML et met à jour la BDD
@@ -380,6 +380,89 @@ export async function getAllPeers(): Promise<Peer[]> {
     return [];
   }
   return data || [];
+}
+
+/**
+ * Récupère les peers externes (autres groupes Epitech avec API intercampus)
+ */
+export async function getExternalPeers(): Promise<Peer[]> {
+  const { data, error } = await supabase
+    .from('peers')
+    .select('*')
+    .eq('status', 'active')
+    .eq('is_external', true)
+    .order('campus_name');
+
+  if (error) {
+    console.error('Error fetching external peers:', error);
+    return [];
+  }
+  return data || [];
+}
+
+/**
+ * Recherche un utilisateur sur un campus externe via /lookup-user
+ */
+export async function lookupExternalUser(
+  peerBaseUrl: string,
+  apiKey: string,
+  email: string,
+): Promise<{ success: boolean; user_id?: string; full_name?: string; campus?: string; message?: string }> {
+  try {
+    const response = await fetch(`${peerBaseUrl}/lookup-user`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: apiKey, email }),
+    });
+    return await response.json();
+  } catch (err) {
+    console.error('Lookup external user failed:', err);
+    return { success: false, message: 'Impossible de contacter le campus distant.' };
+  }
+}
+
+/**
+ * Envoie un transfert intercampus via notre API FastAPI /intercampus-send
+ */
+export async function sendIntercampusTransfer(params: {
+  sourceWalletId: string;
+  destinationWalletId: string;
+  destinationCampusApiUrl: string;
+  destinationApiKey: string;
+  destinationUserId: string;
+  amount: number;
+  currency?: string;
+  description?: string;
+}): Promise<{ success: boolean; status?: string; message?: string; transaction_id?: string; new_balance?: number }> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { success: false, message: 'Non authentifié' };
+    }
+
+    const response = await fetch(`${ML_API_URL}/intercampus-send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        source_wallet_id: params.sourceWalletId,
+        destination_wallet_id: params.destinationWalletId,
+        destination_campus_api_url: params.destinationCampusApiUrl,
+        destination_api_key: params.destinationApiKey,
+        destination_user_id: params.destinationUserId,
+        amount: params.amount,
+        currency: params.currency || 'EPC',
+        description: params.description,
+      }),
+    });
+
+    return await response.json();
+  } catch (err) {
+    console.error('Intercampus send failed:', err);
+    return { success: false, message: 'Erreur lors du transfert intercampus.' };
+  }
 }
 
 /**

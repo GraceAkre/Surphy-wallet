@@ -366,6 +366,149 @@ class SupabaseClient:
         return response.data or []
 
     # =========================================================================
+    # INTERCAMPUS
+    # =========================================================================
+
+    async def verify_campus_api_key(self, wallet_id: str, api_key: str) -> bool:
+        """Vérifie que api_key correspond au api_key_hash du campus_wallet."""
+        client = self._get_client()
+        response = (
+            client.table("campus_wallets")
+            .select("api_key_hash")
+            .eq("id", wallet_id)
+            .limit(1)
+            .execute()
+        )
+        if not response.data:
+            return False
+        return response.data[0].get("api_key_hash") == api_key
+
+    async def fetch_campus_wallet(self, wallet_id: str) -> dict[str, Any] | None:
+        """Récupère un campus_wallet par son ID."""
+        client = self._get_client()
+        response = (
+            client.table("campus_wallets")
+            .select("*")
+            .eq("id", wallet_id)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+
+    async def lookup_user_by_name(
+        self, full_name: str, campus: str
+    ) -> dict[str, Any] | None:
+        """Cherche un utilisateur par nom complet et campus."""
+        client = self._get_client()
+        parts = full_name.strip().split(" ", 1)
+        firstname = parts[0] if parts else ""
+        lastname = parts[1] if len(parts) > 1 else ""
+
+        response = (
+            client.table("users")
+            .select("id, firstname, lastname, campus, email")
+            .ilike("firstname", firstname)
+            .ilike("lastname", lastname)
+            .eq("campus", campus)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+
+    async def get_user_wallet(self, user_id: str) -> dict[str, Any] | None:
+        """Récupère le wallet principal d'un utilisateur."""
+        client = self._get_client()
+        response = (
+            client.table("wallets")
+            .select("*")
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        return response.data[0] if response.data else None
+
+    async def credit_user_wallet(self, user_id: str, amount: float) -> float:
+        """Crédite le wallet d'un utilisateur. Retourne le nouveau solde."""
+        client = self._get_client()
+        # Récupère le wallet
+        wallet = await self.get_user_wallet(user_id)
+        if not wallet:
+            raise DatabaseError(
+                code="WALLET_NOT_FOUND",
+                message=f"No wallet found for user {user_id}",
+                request_id=self._request_id,
+            )
+        new_balance = float(wallet["balance"]) + amount
+        response = (
+            client.table("wallets")
+            .update({"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", wallet["id"])
+            .execute()
+        )
+        if not response.data:
+            raise DatabaseError(
+                code="CREDIT_FAILED",
+                message=f"Failed to credit wallet for user {user_id}",
+                request_id=self._request_id,
+            )
+        return new_balance
+
+    async def debit_user_wallet(self, user_id: str, amount: float) -> float:
+        """Débite le wallet d'un utilisateur. Retourne le nouveau solde."""
+        client = self._get_client()
+        wallet = await self.get_user_wallet(user_id)
+        if not wallet:
+            raise DatabaseError(
+                code="WALLET_NOT_FOUND",
+                message=f"No wallet found for user {user_id}",
+                request_id=self._request_id,
+            )
+        if float(wallet["balance"]) < amount:
+            raise DatabaseError(
+                code="INSUFFICIENT_BALANCE",
+                message=f"Insufficient balance: {wallet['balance']} < {amount}",
+                request_id=self._request_id,
+            )
+        new_balance = float(wallet["balance"]) - amount
+        response = (
+            client.table("wallets")
+            .update({"balance": new_balance, "updated_at": datetime.now(timezone.utc).isoformat()})
+            .eq("id", wallet["id"])
+            .execute()
+        )
+        if not response.data:
+            raise DatabaseError(
+                code="DEBIT_FAILED",
+                message=f"Failed to debit wallet for user {user_id}",
+                request_id=self._request_id,
+            )
+        return new_balance
+
+    async def record_external_transfer(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Enregistre un transfert intercampus dans external_transfers."""
+        client = self._get_client()
+        response = client.table("external_transfers").insert(data).execute()
+        if not response.data:
+            raise DatabaseError(
+                code="INSERT_FAILED",
+                message="Failed to record external transfer",
+                request_id=self._request_id,
+            )
+        return response.data[0]
+
+    async def fetch_external_peers(self) -> list[dict[str, Any]]:
+        """Récupère tous les peers externes actifs."""
+        client = self._get_client()
+        response = (
+            client.table("peers")
+            .select("*")
+            .eq("status", "active")
+            .eq("is_external", True)
+            .execute()
+        )
+        return response.data or []
+
+    # =========================================================================
     # PEERS (pour interop)
     # =========================================================================
 

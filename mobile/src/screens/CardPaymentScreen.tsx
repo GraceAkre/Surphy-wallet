@@ -22,6 +22,8 @@ import {
   Search,
   ArrowDownLeft,
   Check,
+  Building2,
+  Globe,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -35,8 +37,8 @@ import { formatCurrency, formatAmountInput } from '../utils/formatters';
 import { useHaptics } from '../hooks/useHaptics';
 
 // API
-import { getAllUsers, getCurrentUser, getUserWallet, transferFunds, getMoneyRequestsForUser, acceptMoneyRequest, declineMoneyRequest } from '../lib/api';
-import type { User as UserType, MoneyRequest } from '../lib/types';
+import { getAllUsers, getCurrentUser, getUserWallet, transferFunds, getMoneyRequestsForUser, acceptMoneyRequest, declineMoneyRequest, getExternalPeers, lookupExternalUser, sendIntercampusTransfer } from '../lib/api';
+import type { User as UserType, MoneyRequest, Peer } from '../lib/types';
 
 // --- Types ---
 
@@ -54,6 +56,9 @@ type SelectedRecipient = {
   id: string;
   name: string;
   email: string;
+  isExternal?: boolean;
+  peer?: Peer;
+  externalUserId?: string;
 };
 
 export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps) {
@@ -74,22 +79,31 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
 
+  // External peers state
+  const [externalPeers, setExternalPeers] = useState<Peer[]>([]);
+  const [selectedPeer, setSelectedPeer] = useState<Peer | null>(null);
+  const [externalEmail, setExternalEmail] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupResult, setLookupResult] = useState<{ user_id: string; full_name: string; campus: string } | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
   // Money request popup state
   const [pendingRequests, setPendingRequests] = useState<MoneyRequest[]>([]);
   const [requestPopupVisible, setRequestPopupVisible] = useState(false);
   const [currentRequest, setCurrentRequest] = useState<MoneyRequest | null>(null);
   const [requestLoading, setRequestLoading] = useState(false);
 
-  // Fetch current user, wallet and pending requests on mount
+  // Fetch current user, wallet, pending requests and external peers on mount
   useEffect(() => {
     async function loadData() {
       const user = await getCurrentUser();
       if (user) {
         setCurrentUserId(user.id);
         setCurrentUser(user);
-        const [wallet, requests] = await Promise.all([
+        const [wallet, requests, peers] = await Promise.all([
           getUserWallet(user.id),
           getMoneyRequestsForUser(user.id),
+          getExternalPeers(),
         ]);
         if (wallet) {
           setBalance(wallet.balance);
@@ -100,6 +114,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
           setCurrentRequest(requests[0]);
           setRequestPopupVisible(true);
         }
+        setExternalPeers(peers);
       }
     }
     loadData();
@@ -142,6 +157,10 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
     light();
     if (recipient) {
       setRecipient(null);
+      setSelectedPeer(null);
+      setLookupResult(null);
+      setLookupError(null);
+      setExternalEmail('');
     } else {
       setSearchQuery('');
       setModalVisible(true);
@@ -155,7 +174,52 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
       name: `${user.firstname ?? ''} ${user.lastname ?? ''}`.trim() || user.email.split('@')[0],
       email: user.email,
     });
+    setSelectedPeer(null);
+    setLookupResult(null);
+    setLookupError(null);
+    setExternalEmail('');
     setModalVisible(false);
+  };
+
+  const handlePickExternalPeer = (peer: Peer) => {
+    light();
+    setSelectedPeer(peer);
+    setLookupResult(null);
+    setLookupError(null);
+    setExternalEmail('');
+    setModalVisible(false);
+  };
+
+  const handleLookupExternalUser = async () => {
+    if (!selectedPeer || !externalEmail.trim()) return;
+    setLookupLoading(true);
+    setLookupError(null);
+    setLookupResult(null);
+
+    const result = await lookupExternalUser(
+      selectedPeer.base_url,
+      selectedPeer.api_key_hash || '',
+      externalEmail.trim(),
+    );
+
+    if (result.success && result.user_id) {
+      setLookupResult({
+        user_id: result.user_id,
+        full_name: result.full_name || externalEmail,
+        campus: result.campus || selectedPeer.campus_name,
+      });
+      setRecipient({
+        id: result.user_id,
+        name: result.full_name || externalEmail,
+        email: externalEmail,
+        isExternal: true,
+        peer: selectedPeer,
+        externalUserId: result.user_id,
+      });
+    } else {
+      setLookupError(result.message || 'Utilisateur non trouvé sur ce campus.');
+    }
+    setLookupLoading(false);
   };
 
   const handleSend = async () => {
@@ -165,17 +229,41 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
     light();
 
     try {
-      const result = await transferFunds(walletId, recipient.id, numericAmount, currentUser || undefined);
-
-      if (result.success && result.transactionId) {
-        success();
-        navigation.navigate('TransferSuccess', {
-          amount: amount,
-          recipient: recipient.name,
-          transactionId: result.transactionId,
+      // Transfert intercampus (groupe externe)
+      if (recipient.isExternal && recipient.peer && recipient.externalUserId) {
+        const result = await sendIntercampusTransfer({
+          sourceWalletId: walletId,
+          destinationWalletId: recipient.peer.wallet_id || '',
+          destinationCampusApiUrl: recipient.peer.base_url,
+          destinationApiKey: recipient.peer.api_key_hash || '',
+          destinationUserId: recipient.externalUserId,
+          amount: numericAmount,
         });
+
+        if (result.success && result.transaction_id) {
+          success();
+          navigation.navigate('TransferSuccess', {
+            amount: amount,
+            recipient: recipient.name,
+            transactionId: result.transaction_id,
+          });
+        } else {
+          Alert.alert('Échec du transfert', result.message || 'Une erreur est survenue.');
+        }
       } else {
-        Alert.alert('Échec du virement', result.errorMessage || 'Une erreur est survenue.');
+        // Transfert interne classique
+        const result = await transferFunds(walletId, recipient.id, numericAmount, currentUser || undefined);
+
+        if (result.success && result.transactionId) {
+          success();
+          navigation.navigate('TransferSuccess', {
+            amount: amount,
+            recipient: recipient.name,
+            transactionId: result.transactionId,
+          });
+        } else {
+          Alert.alert('Échec du virement', result.errorMessage || 'Une erreur est survenue.');
+        }
       }
     } catch (err) {
       Alert.alert('Erreur', 'Impossible de contacter le serveur. Réessayez.');
@@ -312,11 +400,24 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
             {recipient ? (
               <>
                 <View className="flex-row items-center gap-3">
-                  <Avatar size="md" name={recipient.name} />
+                  {recipient.isExternal ? (
+                    <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
+                      <Globe size={20} color="#3B82F6" />
+                    </View>
+                  ) : (
+                    <Avatar size="md" name={recipient.name} />
+                  )}
                   <View>
-                    <Text className="text-headline text-ink-primary">
-                      {recipient.name}
-                    </Text>
+                    <View className="flex-row items-center gap-2">
+                      <Text className="text-headline text-ink-primary">
+                        {recipient.name}
+                      </Text>
+                      {recipient.isExternal && (
+                        <View className="bg-blue-100 rounded-full px-2 py-0.5">
+                          <Text className="text-caption2 text-primary font-semibold">EXTERNE</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text className="text-footnote text-ink-tertiary">
                       {recipient.email}
                     </Text>
@@ -333,13 +434,63 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
                     <User size={20} color="#6E6E73" />
                   </View>
                   <Text className="text-body text-ink-secondary font-medium">
-                    Sélectionner un étudiant
+                    Sélectionner un destinataire
                   </Text>
                 </View>
                 <ChevronRight size={20} color="#86868B" />
               </>
             )}
           </Pressable>
+
+          {/* External peer lookup — email input */}
+          {selectedPeer && !lookupResult && (
+            <Card variant="elevated" padding="lg" className="mb-6">
+              <View className="flex-row items-center gap-2 mb-3">
+                <Globe size={18} color="#3B82F6" />
+                <Text className="text-headline text-ink-primary">
+                  {selectedPeer.campus_name}
+                </Text>
+              </View>
+              <Text className="text-footnote text-ink-tertiary mb-3">
+                Entrez l'email de l'étudiant sur ce campus pour le retrouver.
+              </Text>
+              <View className="flex-row items-center gap-2">
+                <View className="flex-1">
+                  <TextInput
+                    value={externalEmail}
+                    onChangeText={setExternalEmail}
+                    placeholder="email@epitech.eu"
+                    placeholderTextColor="#86868B"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    className="bg-background rounded-xl px-4 py-3 text-body text-ink-primary border-2 border-separator-opaque"
+                    style={{ padding: 0, paddingHorizontal: 16, paddingVertical: 12 }}
+                  />
+                </View>
+                <Pressable
+                  onPress={handleLookupExternalUser}
+                  disabled={!externalEmail.trim() || lookupLoading}
+                  style={({ pressed }) => [
+                    shadows.primaryButton,
+                    { opacity: !externalEmail.trim() ? 0.5 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] },
+                  ]}
+                  className="bg-primary rounded-xl px-4 py-3 items-center justify-center"
+                >
+                  {lookupLoading ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Search size={20} color="white" />
+                  )}
+                </Pressable>
+              </View>
+              {lookupError && (
+                <Text className="text-footnote text-danger font-medium mt-2">
+                  {lookupError}
+                </Text>
+              )}
+            </Card>
+          )}
 
           {/* Amount Card */}
           <Card variant="elevated" padding="lg" className="mb-6">
@@ -378,7 +529,9 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
             )}
 
             <Text className="text-footnote text-ink-tertiary mt-4 leading-5">
-              Les virements sont instantanés et gratuits entre membres du campus.
+              {recipient?.isExternal
+                ? 'Transfert intercampus — le destinataire sera crédité sur son campus.'
+                : 'Les virements sont instantanés et gratuits entre membres du campus.'}
             </Text>
 
             {/* Send Button */}
@@ -556,15 +709,6 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
                 Chargement des utilisateurs...
               </Text>
             </View>
-          ) : filteredUsers.length === 0 ? (
-            <View className="flex-1 items-center justify-center px-8">
-              <User size={40} color="#86868B" />
-              <Text className="text-body text-ink-secondary mt-3 text-center">
-                {searchQuery
-                  ? 'Aucun utilisateur trouvé'
-                  : 'Aucun utilisateur disponible'}
-              </Text>
-            </View>
           ) : (
             <FlatList
               data={filteredUsers}
@@ -574,6 +718,55 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
               ItemSeparatorComponent={() => (
                 <View className="h-px bg-separator-opaque ml-16 mr-5" />
               )}
+              ListHeaderComponent={
+                <>
+                  {/* External Peers Section */}
+                  {externalPeers.length > 0 && !searchQuery && (
+                    <View className="pb-2">
+                      <Text className="text-caption1 text-ink-tertiary uppercase tracking-wider font-semibold px-5 pt-3 pb-2">
+                        Groupes externes
+                      </Text>
+                      {externalPeers.map((peer) => (
+                        <Pressable
+                          key={peer.id}
+                          onPress={() => handlePickExternalPeer(peer)}
+                          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                          className="flex-row items-center px-5 py-3.5"
+                        >
+                          <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
+                            <Globe size={20} color="#3B82F6" />
+                          </View>
+                          <View className="ml-3 flex-1">
+                            <Text className="text-body text-ink-primary font-semibold">
+                              {peer.campus_name}
+                            </Text>
+                            <Text className="text-footnote text-ink-tertiary">
+                              Transfert intercampus
+                            </Text>
+                          </View>
+                          <View className="bg-blue-50 rounded-full px-2.5 py-1">
+                            <Text className="text-caption2 text-primary font-semibold">EXTERNE</Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                      <View className="h-px bg-separator-opaque mx-5 mt-1" />
+                      <Text className="text-caption1 text-ink-tertiary uppercase tracking-wider font-semibold px-5 pt-3 pb-2">
+                        Étudiants du campus
+                      </Text>
+                    </View>
+                  )}
+                </>
+              }
+              ListEmptyComponent={
+                <View className="flex-1 items-center justify-center px-8 py-12">
+                  <User size={40} color="#86868B" />
+                  <Text className="text-body text-ink-secondary mt-3 text-center">
+                    {searchQuery
+                      ? 'Aucun utilisateur trouvé'
+                      : 'Aucun utilisateur disponible'}
+                  </Text>
+                </View>
+              }
             />
           )}
         </SafeAreaView>

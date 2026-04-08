@@ -86,6 +86,9 @@ export interface Peer {
   public_key: string;
   status: PeerStatus;
   allowed_domains: string[];
+  is_external: boolean;
+  wallet_id: string | null;
+  api_key_hash: string | null;
   created_at: string;
   updated_at: string;
 }

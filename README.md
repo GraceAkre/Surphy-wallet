@@ -91,15 +91,85 @@ Surphy-wallet/
 | R8 | CAMPUS_NOT_ALLOWED | Campus non autorisé | Not in list | +20 |
 | R9 | SCA_THRESHOLD | Seuil SCA | > 750 EPC/jour | +35 |
 
-## API Backend (optionnel)
+## Tester la démo
+
+### Sans API locale (le plus simple)
+
+L'API ML est hébergée sur Render. Pour tester l'app sans lancer de serveur local :
 
 ```bash
-# À la racine du projet
-pip install -e ".[dev]"
-uvicorn api.main:app --reload --port 8000
+git clone https://github.com/Surphy-wallet/Surphy-wallet.git
+cd Surphy-wallet/mobile
+npm install
+EXPO_PUBLIC_API_URL=https://surphy-wallet-api.onrender.com npx expo start --tunnel
 ```
 
+Scanne le QR code avec **Expo Go** (iOS/Android). C'est tout.
+
+> **Note :** L'instance Render gratuite s'endort après 15 min d'inactivité. La première transaction ML peut prendre ~30s, les suivantes sont instantanées.
+
+### Avec API locale (développement)
+
+Si tu veux modifier le code ML et tester en local :
+
+```bash
+# Terminal 1 — API FastAPI
+pip install -e ".[dev]"
+uvicorn api.main:app --reload --port 8000
+
+# Terminal 2 — App mobile
+cd mobile
+npm install
+npx expo start --tunnel
+```
+
+L'app pointe automatiquement vers `localhost:8000` en dev.
+
 Documentation API : http://localhost:8000/docs
+
+### Comptes de test
+
+| Email | Rôle |
+|-------|------|
+| `jordan@epitech.digital` | Utilisateur |
+| `analyste@analyst.surphy.fr` | Analyste (dashboard ML) |
+
+## Monnaie
+
+La monnaie du projet est l'**Epicoin (EPC)**. Taux : **5 EPC = 1€** (1 EPC = 0,20€).
+
+## Intercampus — Groupe 7 (Epitech Lyon)
+
+### Nos credentials (à donner aux autres groupes)
+
+| Champ | Valeur |
+|-------|--------|
+| **Groupe** | Groupe 7 — Epitech Lyon |
+| **wallet_id** | `82a52097-ea76-4248-ba29-ac377338c231` |
+| **api_key_hash** | `03cfc8bd1261a6bb3b9c9e256a51aca4cbb013474a9f216791ee97db7cfaa4b8` |
+| **API URL** | `https://surphy-wallet-api.onrender.com` |
+
+### Endpoints intercampus
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /lookup-user` | Recherche un utilisateur par email ou nom |
+| `POST /intercampus-receive` | Reçoit un transfert entrant d'un autre groupe |
+| `POST /intercampus-send` | Envoie un transfert vers un autre groupe |
+
+### Peers enregistrés
+
+| Groupe | Campus | wallet_id | API URL |
+|--------|--------|-----------|---------|
+| Groupe 2 | Paris | `9ec8742d-726b-4138-80fa-4121f8f27261` | `https://srvkyiugewdjrpvcmquq.supabase.co/functions/v1` |
+
+### Variables d'environnement requises (Render)
+
+En plus des 3 variables Supabase existantes, ajouter :
+
+| Variable | Description |
+|----------|-------------|
+| `SUPABASE_JWT_SECRET` | JWT Secret (Supabase → Settings → API → JWT Secret) — requis pour `/intercampus-send` |
 
 ## Licence
 

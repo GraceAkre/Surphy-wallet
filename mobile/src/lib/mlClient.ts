@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
 // URL FastAPI : variable d'env (EAS build / prod) ou fallback localhost (Expo Go dev)
-const ML_API_URL = process.env.EXPO_PUBLIC_API_URL
+export const ML_API_URL = process.env.EXPO_PUBLIC_API_URL
   || (Platform.OS === 'android' ? 'http://10.0.2.2:8000' : 'http://localhost:8000');
 
 export interface MLResult {

@@ -211,6 +211,9 @@ CREATE TABLE peers (
     public_key TEXT NOT NULL,
     status peer_status DEFAULT 'active',
     allowed_domains TEXT[],                              -- ['@epitech.digital']
+    is_external BOOLEAN DEFAULT false,                   -- true = groupe externe (API intercampus)
+    wallet_id UUID,                                      -- wallet_id du groupe externe
+    api_key_hash VARCHAR(64),                            -- api_key_hash du groupe externe
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -228,6 +231,7 @@ CREATE TABLE campus_wallets (
     campus_name VARCHAR(100) UNIQUE NOT NULL REFERENCES peers(campus_name),
     balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
     currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
+    api_key_hash VARCHAR(64),                            -- Pour authentifier les appels intercampus entrants
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

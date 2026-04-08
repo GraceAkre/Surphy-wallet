@@ -15,10 +15,16 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+import hashlib
+import httpx
+import jwt as pyjwt
+
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, Response, HTTPException, status
+from fastapi import FastAPI, Request, Response, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel as PydanticBaseModel
 
 load_dotenv(dotenv_path=".env.local")
 
@@ -389,6 +395,405 @@ async def analyze_transaction(
         latency_ms=latency_ms,
         timestamp=datetime.now(timezone.utc),
     )
+
+
+# =============================================================================
+# INTERCAMPUS — Pydantic Models
+# =============================================================================
+
+
+class LookupUserRequest(PydanticBaseModel):
+    api_key: str
+    email: str | None = None
+    full_name: str | None = None
+    campus: str | None = None
+
+
+class LookupUserResponse(PydanticBaseModel):
+    success: bool
+    user_id: str | None = None
+    full_name: str | None = None
+    campus: str | None = None
+    message: str | None = None
+
+
+class IntercampusReceiveRequest(PydanticBaseModel):
+    transaction_id: str
+    source_wallet_id: str
+    destination_wallet_id: str
+    destination_user_id: str | None = None
+    amount: float
+    currency: str = "EPC"
+    initiator_user_id: str | None = None
+    api_key: str
+    source_campus_id: str | None = None
+    enriched_data: dict[str, Any] | None = None
+
+
+class IntercampusReceiveResponse(PydanticBaseModel):
+    success: bool
+    status: str
+    message: str
+    transaction_id: str | None = None
+    new_balance: float | None = None
+    fraud_score: int | None = None
+
+
+class IntercampusSendRequest(PydanticBaseModel):
+    source_wallet_id: str
+    destination_wallet_id: str
+    destination_campus_api_url: str
+    destination_api_key: str
+    destination_user_id: str | None = None
+    amount: float
+    currency: str = "EPC"
+    description: str | None = None
+    enriched_data: dict[str, Any] | None = None
+
+
+class IntercampusSendResponse(PydanticBaseModel):
+    success: bool
+    status: str
+    message: str
+    transaction_id: str | None = None
+    destination_tx_id: str | None = None
+    new_balance: float | None = None
+    fraud_score: int | None = None
+
+
+# =============================================================================
+# INTERCAMPUS — JWT Auth
+# =============================================================================
+
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+security_scheme = HTTPBearer()
+
+
+async def verify_jwt(
+    credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
+) -> dict[str, Any]:
+    """Vérifie le JWT Supabase et retourne le payload."""
+    token = credentials.credentials
+    try:
+        payload = pyjwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+        return payload
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+# =============================================================================
+# INTERCAMPUS — Endpoints
+# =============================================================================
+
+
+@app.post(
+    "/lookup-user",
+    response_model=LookupUserResponse,
+    tags=["Intercampus"],
+    summary="Recherche un utilisateur par email ou nom",
+)
+async def lookup_user(payload: LookupUserRequest) -> LookupUserResponse:
+    """
+    Endpoint intercampus : recherche un utilisateur.
+    Auth via api_key comparé au api_key_hash de notre campus_wallet.
+    """
+    async with get_db_session(service_role=True) as db:
+        # Vérifie l'api_key contre tous nos campus_wallets
+        client = db._get_client()
+        wallets_resp = (
+            client.table("campus_wallets")
+            .select("api_key_hash")
+            .not_.is_("api_key_hash", "null")
+            .execute()
+        )
+        valid = any(
+            w.get("api_key_hash") == payload.api_key
+            for w in (wallets_resp.data or [])
+        )
+        if not valid:
+            return LookupUserResponse(
+                success=False, message="Unauthorized: invalid api_key"
+            )
+
+        # Recherche par email
+        if payload.email:
+            user = await db.fetch_user_by_email(payload.email)
+            if user:
+                return LookupUserResponse(
+                    success=True,
+                    user_id=user["id"],
+                    full_name=f"{user.get('firstname', '')} {user.get('lastname', '')}".strip(),
+                    campus=user.get("campus"),
+                )
+            return LookupUserResponse(
+                success=False, message="User not found"
+            )
+
+        # Recherche par nom + campus
+        if payload.full_name and payload.campus:
+            user = await db.lookup_user_by_name(payload.full_name, payload.campus)
+            if user:
+                return LookupUserResponse(
+                    success=True,
+                    user_id=user["id"],
+                    full_name=f"{user.get('firstname', '')} {user.get('lastname', '')}".strip(),
+                    campus=user.get("campus"),
+                )
+            return LookupUserResponse(
+                success=False, message="User not found"
+            )
+
+        return LookupUserResponse(
+            success=False, message="Provide email or (full_name + campus)"
+        )
+
+
+@app.post(
+    "/intercampus-receive",
+    response_model=IntercampusReceiveResponse,
+    tags=["Intercampus"],
+    summary="Reçoit un transfert intercampus entrant",
+)
+async def intercampus_receive(
+    request: Request,
+    payload: IntercampusReceiveRequest,
+) -> IntercampusReceiveResponse:
+    """
+    Endpoint intercampus : reçoit un transfert entrant d'un autre groupe.
+    Auth via api_key comparé au api_key_hash de notre campus_wallet.
+    """
+    request_id = request.state.request_id
+
+    async with get_db_session(service_role=True, request_id=request_id) as db:
+        # 1. Vérifie l'api_key
+        valid = await db.verify_campus_api_key(
+            payload.destination_wallet_id, payload.api_key
+        )
+        if not valid:
+            return IntercampusReceiveResponse(
+                success=False, status="unauthorized",
+                message="Invalid api_key for destination wallet",
+            )
+
+        # 2. Vérifie que le campus wallet existe et est actif
+        campus_wallet = await db.fetch_campus_wallet(payload.destination_wallet_id)
+        if not campus_wallet:
+            return IntercampusReceiveResponse(
+                success=False, status="failed",
+                message="Destination campus wallet not found",
+            )
+
+        # 3. Crédite le wallet de l'utilisateur destinataire (si spécifié)
+        new_balance = None
+        if payload.destination_user_id:
+            try:
+                new_balance = await db.credit_user_wallet(
+                    payload.destination_user_id, payload.amount
+                )
+            except DatabaseError as e:
+                return IntercampusReceiveResponse(
+                    success=False, status="failed",
+                    message=f"Failed to credit user: {e.message}",
+                )
+        else:
+            # Crédite le campus wallet directement
+            client = db._get_client()
+            current_balance = float(campus_wallet.get("balance", 0))
+            new_balance = current_balance + payload.amount
+            client.table("campus_wallets").update(
+                {"balance": new_balance}
+            ).eq("id", payload.destination_wallet_id).execute()
+
+        # 4. Enregistre la transaction
+        tx_id = str(uuid4())
+        try:
+            await db.create_transaction({
+                "id": tx_id,
+                "user_id": payload.destination_user_id or payload.initiator_user_id,
+                "wallet_id": payload.destination_wallet_id,
+                "amount": payload.amount,
+                "currency": payload.currency,
+                "country": "FR",
+                "transaction_type": "transfer",
+                "direction": "incoming",
+                "status": "approved",
+                "request_id": request_id,
+                "provider": "intercampus",
+                "source_campus_code": payload.source_campus_id,
+                "external_tx_id": payload.transaction_id,
+                "type": "intercampus_receive",
+            })
+        except Exception as e:
+            logger.warning(f"Failed to record intercampus transaction: {e}")
+
+        # 5. Enregistre dans external_transfers
+        try:
+            await db.record_external_transfer({
+                "from_wallet_id": payload.source_wallet_id,
+                "to_email": payload.destination_user_id or "campus_wallet",
+                "to_campus": payload.source_campus_id or "unknown",
+                "amount": payload.amount,
+                "currency": payload.currency,
+                "status": "completed",
+                "request_id": request_id,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:
+            logger.warning(f"Failed to record external transfer: {e}")
+
+        return IntercampusReceiveResponse(
+            success=True,
+            status="completed",
+            message="Transfer received successfully",
+            transaction_id=tx_id,
+            new_balance=new_balance,
+        )
+
+
+@app.post(
+    "/intercampus-send",
+    response_model=IntercampusSendResponse,
+    tags=["Intercampus"],
+    summary="Envoie un transfert intercampus vers un autre groupe",
+)
+async def intercampus_send(
+    request: Request,
+    payload: IntercampusSendRequest,
+    jwt_payload: dict[str, Any] = Depends(verify_jwt),
+) -> IntercampusSendResponse:
+    """
+    Endpoint intercampus : envoie un transfert vers un autre groupe.
+    Auth via JWT Supabase (user connecté).
+    """
+    request_id = request.state.request_id
+    user_id = jwt_payload.get("sub")
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid JWT: no sub claim")
+
+    async with get_db_session(service_role=True, request_id=request_id) as db:
+        # 1. Vérifie que le user possède le wallet source
+        user_wallet = await db.get_user_wallet(user_id)
+        if not user_wallet or user_wallet["id"] != payload.source_wallet_id:
+            return IntercampusSendResponse(
+                success=False, status="unauthorized",
+                message="You don't own the source wallet",
+            )
+
+        # 2. Vérifie le solde
+        if float(user_wallet["balance"]) < payload.amount:
+            return IntercampusSendResponse(
+                success=False, status="failed",
+                message=f"Insufficient balance: {user_wallet['balance']} < {payload.amount}",
+            )
+
+        # 3. Débite le wallet local
+        try:
+            new_balance = await db.debit_user_wallet(user_id, payload.amount)
+        except DatabaseError as e:
+            return IntercampusSendResponse(
+                success=False, status="failed",
+                message=f"Debit failed: {e.message}",
+            )
+
+        # 4. Appelle l'API du campus distant
+        tx_id = str(uuid4())
+        destination_tx_id = None
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{payload.destination_campus_api_url}/intercampus-receive",
+                    json={
+                        "transaction_id": tx_id,
+                        "source_wallet_id": payload.source_wallet_id,
+                        "destination_wallet_id": payload.destination_wallet_id,
+                        "destination_user_id": payload.destination_user_id,
+                        "amount": payload.amount,
+                        "currency": payload.currency,
+                        "initiator_user_id": user_id,
+                        "api_key": payload.destination_api_key,
+                        "source_campus_id": "lyon",
+                        "enriched_data": payload.enriched_data,
+                    },
+                )
+                remote_data = resp.json()
+
+                if resp.status_code != 200 or not remote_data.get("success"):
+                    # Rollback : recrédite le wallet local
+                    await db.credit_user_wallet(user_id, payload.amount)
+                    return IntercampusSendResponse(
+                        success=False, status="failed",
+                        message=f"Remote campus rejected: {remote_data.get('message', 'unknown error')}",
+                    )
+
+                destination_tx_id = remote_data.get("transaction_id")
+
+        except httpx.TimeoutException:
+            # Rollback
+            await db.credit_user_wallet(user_id, payload.amount)
+            return IntercampusSendResponse(
+                success=False, status="failed",
+                message="Remote campus timeout — transfer rolled back",
+            )
+        except Exception as e:
+            # Rollback
+            await db.credit_user_wallet(user_id, payload.amount)
+            return IntercampusSendResponse(
+                success=False, status="error",
+                message=f"Remote campus error: {str(e)} — transfer rolled back",
+            )
+
+        # 5. Enregistre la transaction locale
+        try:
+            await db.create_transaction({
+                "id": tx_id,
+                "user_id": user_id,
+                "wallet_id": payload.source_wallet_id,
+                "amount": payload.amount,
+                "currency": payload.currency,
+                "country": "FR",
+                "transaction_type": "transfer",
+                "direction": "outgoing",
+                "status": "approved",
+                "request_id": request_id,
+                "provider": "intercampus",
+                "destination_wallet_id": payload.destination_wallet_id,
+                "external_tx_id": destination_tx_id,
+                "type": "intercampus_send",
+            })
+        except Exception as e:
+            logger.warning(f"Failed to record outgoing intercampus tx: {e}")
+
+        # 6. Enregistre dans external_transfers
+        try:
+            await db.record_external_transfer({
+                "from_wallet_id": payload.source_wallet_id,
+                "to_email": payload.destination_user_id or "campus_wallet",
+                "to_campus": "external",
+                "amount": payload.amount,
+                "currency": payload.currency,
+                "status": "completed",
+                "request_id": request_id,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:
+            logger.warning(f"Failed to record external transfer: {e}")
+
+        return IntercampusSendResponse(
+            success=True,
+            status="completed",
+            message="Intercampus transfer completed",
+            transaction_id=tx_id,
+            destination_tx_id=destination_tx_id,
+            new_balance=new_balance,
+        )
 
 
 # =============================================================================
