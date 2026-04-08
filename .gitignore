@@ -167,11 +167,9 @@ site/
 mobile/Wireframes surphy-wallet/
 
 # =============================================================================
-# ML MODEL (fichiers binaires lourds)
+# ML MODEL — on garde ml_model/ dans le repo pour le déploiement Render
 # =============================================================================
-ml_model/
 data/
-*.pkl
 
 # Seed data (contient des données spécifiques à l'environnement)
 supabase/seed_transactions.sql

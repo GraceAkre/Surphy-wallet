@@ -1,0 +1,75 @@
+{
+  "model_type": "XGBClassifier",
+  "version": "1.0.0",
+  "trained_at": "2026-03-27T00:11:59.364271",
+  "n_train_samples": 8000,
+  "n_test_samples": 2000,
+  "fraud_rate": 0.05,
+  "feature_columns": [
+    "amount",
+    "hour_of_day",
+    "day_of_week",
+    "ip_geo_distance_km",
+    "recent_transaction_count",
+    "daily_total",
+    "account_age_days",
+    "amount_vs_user_avg",
+    "tx_frequency_ratio",
+    "flag_R1_amount_high",
+    "flag_R2_time_suspicious",
+    "flag_R3_location_change",
+    "flag_R4_velocity_high",
+    "flag_R5_ip_geo_mismatch",
+    "flag_R6_kyc_expired",
+    "flag_R7_duplicate",
+    "flag_R8_campus_blocked",
+    "flag_R9_sca_threshold",
+    "rule_score"
+  ],
+  "metrics": {
+    "auc_roc": 0.9999631578947368,
+    "auc_pr": 0.9993457943925234,
+    "confusion_matrix": {
+      "tp": 99,
+      "fp": 1,
+      "fn": 1,
+      "tn": 1899
+    }
+  },
+  "hyperparameters": {
+    "n_estimators": 200,
+    "max_depth": 6,
+    "learning_rate": 0.1,
+    "scale_pos_weight": 19.0,
+    "min_child_weight": 3,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8
+  },
+  "decision_thresholds": {
+    "approve": "score < 30 (proba < 0.30)",
+    "review": "30 <= score < 70 (0.30 <= proba < 0.70)",
+    "block": "score >= 70 (proba >= 0.70)"
+  },
+  "feature_importance_top5": [
+    {
+      "name": "rule_score",
+      "importance": 0.26490673422813416
+    },
+    {
+      "name": "flag_R5_ip_geo_mismatch",
+      "importance": 0.2185857892036438
+    },
+    {
+      "name": "flag_R4_velocity_high",
+      "importance": 0.1177905946969986
+    },
+    {
+      "name": "amount",
+      "importance": 0.11341103166341782
+    },
+    {
+      "name": "recent_transaction_count",
+      "importance": 0.0761977881193161
+    }
+  ]
+}
