@@ -115,8 +115,8 @@ async function createUserFromAuth(authId: string, email: string): Promise<User |
     .insert({
       user_id: authId,
       campus: 'Paris',
-      currency: 'EUR',
-      balance: 100.00,
+      currency: 'EPC',
+      balance: 500.00,
       status: 'active',
     });
 
@@ -126,8 +126,8 @@ async function createUserFromAuth(authId: string, email: string): Promise<User |
       .from('wallets')
       .insert({
         user_id: authId,
-        currency: 'EUR',
-        balance: 100.00,
+        currency: 'EPC',
+        balance: 500.00,
         status: 'active',
       });
   }
@@ -266,8 +266,8 @@ async function createWalletForUser(userId: string, campus?: string): Promise<Wal
     .insert({
       user_id: userId,
       campus,
-      currency: 'EUR',
-      balance: 100.00,
+      currency: 'EPC',
+      balance: 500.00,
       status: 'active',
     })
     .select()
@@ -279,8 +279,8 @@ async function createWalletForUser(userId: string, campus?: string): Promise<Wal
       .from('wallets')
       .insert({
         user_id: userId,
-        currency: 'EUR',
-        balance: 100.00,
+        currency: 'EPC',
+        balance: 500.00,
         status: 'active',
       })
       .select()
@@ -718,7 +718,7 @@ export async function createMoneyRequest(
       requester_id: requesterId,
       target_id: targetId,
       amount,
-      currency: 'EUR',
+      currency: 'EPC',
       message: message || null,
     });
 
@@ -944,7 +944,7 @@ export async function getUserCampusWallets(userId: string): Promise<Wallet[]> {
 }
 
 /**
- * Crée ou réactive un wallet pour un campus partenaire (solde initial 0€)
+ * Crée ou réactive un wallet pour un campus partenaire (solde initial 0 EPC)
  * Si un wallet fermé existe déjà pour ce campus, le réactive
  */
 export async function createCampusWallet(
@@ -982,7 +982,7 @@ export async function createCampusWallet(
     .insert({
       user_id: userId,
       campus: campusName,
-      currency: 'EUR',
+      currency: 'EPC',
       balance: 0,
       status: 'active',
     })
@@ -1019,7 +1019,7 @@ export async function deactivateCampusWallet(
   if (wallet && wallet.balance > 0) {
     return {
       success: false,
-      errorMessage: `Impossible de désactiver : solde restant de ${wallet.balance}€. Transférez vos fonds avant de désactiver.`,
+      errorMessage: `Impossible de désactiver : solde restant de ${wallet.balance} EPC. Transférez vos fonds avant de désactiver.`,
     };
   }
 

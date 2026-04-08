@@ -71,17 +71,28 @@ export function formatCurrency(
     compact?: boolean;
   } = {}
 ): string {
-  const { currency = 'EUR', showSign = false, compact = false } = options;
+  const { currency = 'EPC', showSign = false, compact = false } = options;
 
-  const formatter = new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency,
-    notation: compact && Math.abs(amount) >= 1000 ? 'compact' : 'standard',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  let result: string;
 
-  let result = formatter.format(Math.abs(amount));
+  if (currency === 'EPC') {
+    // EPC n'est pas un code ISO 4217 — Intl.NumberFormat crasherait avec style: 'currency'
+    const formatted = new Intl.NumberFormat('fr-FR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      notation: compact && Math.abs(amount) >= 1000 ? 'compact' : 'standard',
+    }).format(Math.abs(amount));
+    result = `${formatted} EPC`;
+  } else {
+    const formatter = new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency,
+      notation: compact && Math.abs(amount) >= 1000 ? 'compact' : 'standard',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    result = formatter.format(Math.abs(amount));
+  }
 
   if (showSign && amount !== 0) {
     result = (amount > 0 ? '+' : '-') + result;

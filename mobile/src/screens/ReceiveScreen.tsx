@@ -145,7 +145,7 @@ export default function ReceiveScreen({ navigation }: ReceiveScreenProps) {
         success();
         Alert.alert(
           'Demande envoyée',
-          `Votre demande de ${amount} € a été envoyée à ${recipient.name}.`,
+          `Votre demande de ${amount} EPC a été envoyée à ${recipient.name}.`,
           [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
       } else {
@@ -264,7 +264,7 @@ export default function ReceiveScreen({ navigation }: ReceiveScreenProps) {
               `}
               style={isFocused ? shadows.soft : undefined}
             >
-              <Text className="text-title1 text-ink-tertiary font-normal mr-3">€</Text>
+              <Text className="text-title1 text-ink-tertiary font-normal mr-3">EPC</Text>
               <View className="w-px h-8 bg-separator-opaque mr-4" />
               <TextInput
                 value={amount}
@@ -303,7 +303,7 @@ export default function ReceiveScreen({ navigation }: ReceiveScreenProps) {
                 <ActivityIndicator color="white" />
               ) : (
                 <Text className="text-headline text-white">
-                  Envoyer la demande {amount ? `de ${amount} €` : ''}
+                  Envoyer la demande {amount ? `de ${amount} EPC` : ''}
                 </Text>
               )}
             </Pressable>

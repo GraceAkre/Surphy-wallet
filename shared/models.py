@@ -113,7 +113,7 @@ class MLAnalysisRequest(BaseModel):
                 "transaction_id": "550e8400-e29b-41d4-a716-446655440000",
                 "user_id": "123e4567-e89b-12d3-a456-426614174000",
                 "amount": 650.00,
-                "currency": "EUR",
+                "currency": "EPC",
                 "country": "FR",
                 "city": "Paris",
                 "ip_address": "192.168.1.1",
@@ -129,9 +129,9 @@ class MLAnalysisRequest(BaseModel):
     user_id: UUID = Field(description="ID de l'utilisateur")
     amount: float = Field(gt=0, description="Montant de la transaction")
     currency: str = Field(
-        default="EUR",
+        default="EPC",
         pattern=r"^[A-Z]{3}$",
-        description="Code devise ISO 4217",
+        description="Code devise (EPC = Epicoin campus)",
     )
     country: str = Field(
         pattern=r"^[A-Z]{2}$",
@@ -202,7 +202,7 @@ class TransactionRequest(BaseModel):
     user_id: UUID = Field(description="ID de l'utilisateur")
     wallet_id: UUID = Field(description="ID du wallet")
     amount: float = Field(gt=0, description="Montant")
-    currency: str = Field(default="EUR", pattern=r"^[A-Z]{3}$")
+    currency: str = Field(default="EPC", pattern=r"^[A-Z]{3}$")
     country: str = Field(pattern=r"^[A-Z]{2}$")
     city: str | None = Field(default=None, max_length=100)
     transaction_type: TransactionType = Field(description="Type de transaction")

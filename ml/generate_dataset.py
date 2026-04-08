@@ -126,7 +126,7 @@ def gen_legit_transaction(user):
 
     return {
         "amount": amount,
-        "currency": "EUR",
+        "currency": "EPC",
         "country": country,
         "city": city,
         "ip_latitude": round(ip_lat, 6),
@@ -163,9 +163,9 @@ def gen_fraud_transaction(user):
     ], p=[0.15, 0.15, 0.20, 0.15, 0.10, 0.25])
 
     if fraud_type == "high_amount":
-        tx["amount"] = round(np.random.uniform(500, 2000), 2)
+        tx["amount"] = round(np.random.uniform(2500, 10000), 2)
         tx["amount_vs_user_avg"] = round(tx["amount"] / max(users[0]["avg_amount"], 1), 4)
-        tx["daily_total"] = round(np.random.uniform(150, 500), 2)
+        tx["daily_total"] = round(np.random.uniform(750, 2500), 2)
 
     elif fraud_type == "velocity_burst":
         tx["recent_transaction_count"] = np.random.randint(3, 10)
@@ -185,7 +185,7 @@ def gen_fraud_transaction(user):
         tx["hour_of_day"] = np.random.randint(0, 6)
         tx["country"] = np.random.choice(COUNTRIES_EU + COUNTRIES_OTHER)
         tx["last_transaction_country"] = "FR"
-        tx["amount"] = round(np.random.uniform(100, 800), 2)
+        tx["amount"] = round(np.random.uniform(500, 4000), 2)
 
     elif fraud_type == "duplicate_attack":
         tx["has_duplicate"] = True
@@ -193,7 +193,7 @@ def gen_fraud_transaction(user):
         tx["amount"] = round(np.random.choice([49.99, 99.99, 149.99, 199.99]), 2)
 
     elif fraud_type == "multi_signal":
-        tx["amount"] = round(np.random.uniform(300, 1500), 2)
+        tx["amount"] = round(np.random.uniform(1500, 7500), 2)
         tx["hour_of_day"] = np.random.randint(0, 6)
         tx["ip_latitude"] = round(np.random.uniform(-30, 60), 6)
         tx["ip_longitude"] = round(np.random.uniform(-120, 120), 6)
@@ -216,7 +216,7 @@ def gen_fraud_transaction(user):
 
 # --- Règles R1-R9 comme features binaires ---
 def apply_rules(tx):
-    tx["flag_R1_amount_high"] = 1 if tx["amount"] > 500 else 0
+    tx["flag_R1_amount_high"] = 1 if tx["amount"] > 2500 else 0
     tx["flag_R2_time_suspicious"] = 1 if 0 <= tx["hour_of_day"] < 6 else 0
     tx["flag_R3_location_change"] = 1 if tx["country"] != tx["last_transaction_country"] else 0
     tx["flag_R4_velocity_high"] = 1 if tx["recent_transaction_count"] >= 3 else 0
@@ -224,7 +224,7 @@ def apply_rules(tx):
     tx["flag_R6_kyc_expired"] = 1 if not tx["kyc_valid"] else 0
     tx["flag_R7_duplicate"] = 1 if tx["has_duplicate"] else 0
     tx["flag_R8_campus_blocked"] = 1 if tx["campus"] not in CAMPUSES else 0
-    tx["flag_R9_sca_threshold"] = 1 if (tx["daily_total"] + tx["amount"]) > 150 else 0
+    tx["flag_R9_sca_threshold"] = 1 if (tx["daily_total"] + tx["amount"]) > 750 else 0
 
     tx["rule_score"] = (
         tx["flag_R1_amount_high"] * 30 +
@@ -283,8 +283,8 @@ for f in FEATURE_COLS:
     print(f"  - {f}")
 
 print(f"\nStats des montants:")
-print(f"  Légitimes: mean={df[df['is_fraud']==0]['amount'].mean():.2f}€, median={df[df['is_fraud']==0]['amount'].median():.2f}€")
-print(f"  Fraudes:   mean={df[df['is_fraud']==1]['amount'].mean():.2f}€, median={df[df['is_fraud']==1]['amount'].median():.2f}€")
+print(f"  Légitimes: mean={df[df['is_fraud']==0]['amount'].mean():.2f} EPC, median={df[df['is_fraud']==0]['amount'].median():.2f} EPC")
+print(f"  Fraudes:   mean={df[df['is_fraud']==1]['amount'].mean():.2f} EPC, median={df[df['is_fraud']==1]['amount'].median():.2f} EPC")
 
 print(f"\nFlags déclenchés (fraudes vs légitimes):")
 for col in [c for c in df.columns if c.startswith("flag_")]:
@@ -292,7 +292,7 @@ for col in [c for c in df.columns if c.startswith("flag_")]:
     legit_rate = df[df["is_fraud"]==0][col].mean()
     print(f"  {col}: fraud={fraud_rate:.1%} vs legit={legit_rate:.1%}")
 
-df.to_csv("/home/claude/smart_wallet_training_data.csv", index=False)
+df.to_csv("ml/smart_wallet_training_data.csv", index=False)
 
 features_meta = {
     "dataset_name": "Smart Wallet IA - Training Dataset",
@@ -303,16 +303,16 @@ features_meta = {
     "target_column": "is_fraud",
     "context_columns": ["transaction_id", "user_id", "country", "city", "campus", "merchant_id", "timestamp", "provider", "transaction_type", "direction", "currency"],
     "description": {
-        "amount": "Montant de la transaction en EUR",
+        "amount": "Montant de la transaction en EPC",
         "hour_of_day": "Heure de la transaction (0-23)",
         "day_of_week": "Jour de la semaine (0=lundi, 6=dimanche)",
         "ip_geo_distance_km": "Distance Haversine entre IP et position déclarée (km)",
         "recent_transaction_count": "Nombre de transactions dans les 5 dernières minutes",
-        "daily_total": "Cumul des transactions du jour en EUR",
+        "daily_total": "Cumul des transactions du jour en EPC",
         "account_age_days": "Ancienneté du compte en jours",
         "amount_vs_user_avg": "Ratio montant / moyenne habituelle de l'utilisateur",
         "tx_frequency_ratio": "Ratio fréquence actuelle / fréquence habituelle",
-        "flag_R1_amount_high": "R1: Montant > 500€",
+        "flag_R1_amount_high": "R1: Montant > 2500 EPC",
         "flag_R2_time_suspicious": "R2: Transaction entre 0h et 6h",
         "flag_R3_location_change": "R3: Pays différent de la dernière transaction",
         "flag_R4_velocity_high": "R4: >= 3 transactions en 5 min",
@@ -320,12 +320,12 @@ features_meta = {
         "flag_R6_kyc_expired": "R6: KYC expiré",
         "flag_R7_duplicate": "R7: Transaction dupliquée (même montant+merchant < 2min)",
         "flag_R8_campus_blocked": "R8: Campus non autorisé",
-        "flag_R9_sca_threshold": "R9: Cumul journalier > 150€ (PSD2)",
+        "flag_R9_sca_threshold": "R9: Cumul journalier > 750 EPC (PSD2)",
         "rule_score": "Score agrégé des 9 règles (0-100)",
     },
 }
 
-with open("/home/claude/dataset_metadata.json", "w") as f:
+with open("ml/dataset_metadata.json", "w") as f:
     json.dump(features_meta, f, indent=2, ensure_ascii=False)
 
 print("\nFichiers générés:")

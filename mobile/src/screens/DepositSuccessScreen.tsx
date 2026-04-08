@@ -37,7 +37,7 @@ export default function DepositSuccessScreen({ navigation, route }: Props) {
         <View className="bg-surface rounded-2xl p-6 w-full border border-separator-opaque mb-10">
           <View className="flex-row justify-between mb-4">
             <Text className="text-subheadline text-ink-tertiary">Montant</Text>
-            <Text className="text-headline text-ink-primary">{amount} EUR</Text>
+            <Text className="text-headline text-ink-primary">{amount} EPC</Text>
           </View>
           <View className="h-px bg-separator-opaque mb-4" />
           <View className="flex-row justify-between mb-4">

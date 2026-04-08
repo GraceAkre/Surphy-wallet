@@ -43,7 +43,7 @@ const TRIGGERED_RULES = [
     code: 'R3',
     icon: Zap,
     label: 'Montant élevé',
-    description: 'Transaction > 500€',
+    description: 'Transaction > 2500 EPC',
     weight: 25,
   },
   {

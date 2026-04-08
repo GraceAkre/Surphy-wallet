@@ -1,0 +1,57 @@
+# Git
+.git
+.github
+.gitignore
+
+# Documentation
+*.md
+docs/
+CLAUDE.md
+
+# Mobile app (not needed for API)
+mobile/
+
+# Tests
+tests/
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ML training data (model binaries ARE needed)
+ml/smart_wallet_training_data.csv
+ml/generate_dataset.py
+ml/train_xgboost.py
+ml/dataset_metadata.json
+
+# Supabase
+supabase/
+.supabase/
+
+# Claude
+.claude/
+
+# Misc
+tmp/
+temp/
+*.log
+*.bak

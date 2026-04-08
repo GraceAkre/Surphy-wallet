@@ -1,0 +1,59 @@
+# ==============================================================================
+# CI/CD — Deploy FastAPI to Render.com
+# ==============================================================================
+# Declenche sur push vers la branche principale.
+# 1. Teste l'API (lint + health check)
+# 2. Deploie automatiquement via le Deploy Hook Render
+#
+# Secret requis dans GitHub > Settings > Secrets :
+#   RENDER_DEPLOY_HOOK_URL : URL du deploy hook (dans Render > Settings > Deploy Hook)
+# ==============================================================================
+
+name: Deploy API
+
+on:
+  push:
+    branches:
+      - infra/supabase-core
+    paths:
+      - 'api/**'
+      - 'ml/**'
+      - 'shared/**'
+      - 'ml_model/**'
+      - 'Dockerfile'
+      - 'pyproject.toml'
+      - 'render.yaml'
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install joblib numpy scikit-learn xgboost shap
+
+      - name: Ruff format check
+        run: ruff format --check api/ ml/ shared/
+
+      - name: Ruff lint
+        run: ruff check api/ ml/ shared/
+
+  deploy:
+    name: Deploy to Render
+    needs: lint
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/infra/supabase-core'
+    steps:
+      - name: Trigger Render Deploy
+        run: |
+          curl -s "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          echo "Deploy triggered on Render"

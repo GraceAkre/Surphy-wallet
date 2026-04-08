@@ -355,7 +355,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
               `}
               style={isFocused ? shadows.soft : undefined}
             >
-              <Text className="text-title1 text-ink-tertiary font-normal mr-3">€</Text>
+              <Text className="text-title1 text-ink-tertiary font-normal mr-3">EPC</Text>
               <View className="w-px h-8 bg-separator-opaque mr-4" />
               <TextInput
                 value={amount}
@@ -401,7 +401,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
                 <ActivityIndicator color="white" />
               ) : (
                 <Text className="text-headline text-white">
-                  Envoyer {amount ? `${amount} €` : ''}
+                  Envoyer {amount ? `${amount} EPC` : ''}
                 </Text>
               )}
             </Pressable>

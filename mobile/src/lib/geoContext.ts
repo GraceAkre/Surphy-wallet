@@ -24,7 +24,7 @@ export function buildMLPayload(
     transaction_id: transactionId,
     user_id: user.id,
     amount,
-    currency: 'EUR',
+    currency: 'EPC',
     country: 'FR',
     city: user.campus || 'Paris',
     merchant_id: MERCHANT_IDS[txType] || 'unknown',

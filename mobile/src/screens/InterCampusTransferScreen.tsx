@@ -427,7 +427,7 @@ export default function InterCampusTransferScreen() {
                   className="flex-1 text-ink-primary"
                   style={{ padding: 0, fontSize: 22, fontWeight: '700' }}
                 />
-                <Text className="text-title3 font-bold text-ink-tertiary ml-2">EUR</Text>
+                <Text className="text-title3 font-bold text-ink-tertiary ml-2">EPC</Text>
               </View>
               {amount && !contributeAmountValid && (
                 <Text className="text-footnote text-danger font-medium mt-1.5">
@@ -534,7 +534,7 @@ export default function InterCampusTransferScreen() {
                     className="flex-1 text-ink-primary"
                     style={{ padding: 0, fontSize: 22, fontWeight: '700' }}
                   />
-                  <Text className="text-title3 font-bold text-ink-tertiary ml-2">EUR</Text>
+                  <Text className="text-title3 font-bold text-ink-tertiary ml-2">EPC</Text>
                 </View>
                 {distributeAmount && !distributeAmountValid && (
                   <Text className="text-footnote text-danger font-medium mt-1.5">

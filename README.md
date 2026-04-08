@@ -81,7 +81,7 @@ Surphy-wallet/
 
 | ID | Code | Description | Seuil | Poids |
 |----|------|-------------|-------|-------|
-| R1 | AMOUNT_HIGH | Montant élevé | > 500€ | +30 |
+| R1 | AMOUNT_HIGH | Montant élevé | > 2500 EPC | +30 |
 | R2 | TIME_SUSPICIOUS | Heure suspecte | 00h-06h | +20 |
 | R3 | LOCATION_CHANGE | Changement de pays | Pays ≠ | +25 |
 | R4 | VELOCITY_HIGH | Vélocité élevée | ≥ 3 tx/5min | +35 |
@@ -89,7 +89,7 @@ Surphy-wallet/
 | R6 | KYC_EXPIRED | KYC expiré | Expiré | +15 |
 | R7 | DUPLICATE_REQUEST | Requête dupliquée | < 2min | +50 |
 | R8 | CAMPUS_NOT_ALLOWED | Campus non autorisé | Not in list | +20 |
-| R9 | SCA_THRESHOLD | Seuil SCA | > 150€/jour | +35 |
+| R9 | SCA_THRESHOLD | Seuil SCA | > 750 EPC/jour | +35 |
 
 ## API Backend (optionnel)
 

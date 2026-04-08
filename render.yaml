@@ -1,0 +1,41 @@
+# ==============================================================================
+# Render.com — Blueprint (Infrastructure as Code)
+# ==============================================================================
+# Ce fichier definit le service FastAPI sur Render.
+# Render detecte automatiquement ce fichier et propose la creation du service.
+#
+# Pour deployer :
+# 1. Connecter le repo GitHub sur https://dashboard.render.com
+# 2. Render detecte render.yaml et cree le service
+# 3. Configurer les variables d'env dans le dashboard Render
+# ==============================================================================
+
+services:
+  - type: web
+    name: surphy-wallet-api
+    runtime: docker
+    region: frankfurt          # EU pour la latence Supabase (EU)
+    plan: free                 # free tier pour le staging, starter pour prod
+    branch: infra/supabase-core   # branche principale
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      # --- Supabase (configurer les 3 dans le dashboard Render) ---
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # --- Application ---
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ALLOWED_CAMPUSES
+        value: Paris,Lyon,Bordeaux
+      # --- Seuils ML ---
+      - key: THRESHOLD_AMOUNT_HIGH
+        value: "2500"
+      - key: THRESHOLD_SCA_DAILY
+        value: "750"

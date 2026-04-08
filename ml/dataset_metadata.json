@@ -39,16 +39,16 @@
     "currency"
   ],
   "description": {
-    "amount": "Montant de la transaction en EUR",
+    "amount": "Montant de la transaction en EPC",
     "hour_of_day": "Heure de la transaction (0-23)",
     "day_of_week": "Jour de la semaine (0=lundi, 6=dimanche)",
     "ip_geo_distance_km": "Distance Haversine entre IP et position déclarée (km)",
     "recent_transaction_count": "Nombre de transactions dans les 5 dernières minutes",
-    "daily_total": "Cumul des transactions du jour en EUR",
+    "daily_total": "Cumul des transactions du jour en EPC",
     "account_age_days": "Ancienneté du compte en jours",
     "amount_vs_user_avg": "Ratio montant / moyenne habituelle de l'utilisateur",
     "tx_frequency_ratio": "Ratio fréquence actuelle / fréquence habituelle",
-    "flag_R1_amount_high": "R1: Montant > 500€",
+    "flag_R1_amount_high": "R1: Montant > 2500 EPC",
     "flag_R2_time_suspicious": "R2: Transaction entre 0h et 6h",
     "flag_R3_location_change": "R3: Pays différent de la dernière transaction",
     "flag_R4_velocity_high": "R4: >= 3 transactions en 5 min",
@@ -56,7 +56,7 @@
     "flag_R6_kyc_expired": "R6: KYC expiré",
     "flag_R7_duplicate": "R7: Transaction dupliquée (même montant+merchant < 2min)",
     "flag_R8_campus_blocked": "R8: Campus non autorisé",
-    "flag_R9_sca_threshold": "R9: Cumul journalier > 150€ (PSD2)",
+    "flag_R9_sca_threshold": "R9: Cumul journalier > 750 EPC (PSD2)",
     "rule_score": "Score agrégé des 9 règles (0-100)"
   }
 }

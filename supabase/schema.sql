@@ -65,7 +65,7 @@ CREATE TABLE wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     campus VARCHAR(100),
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
     balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
     status wallet_status DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -91,7 +91,7 @@ CREATE TABLE transactions (
     provider VARCHAR(50) NOT NULL,                      -- 'stripe', 'paypal', 'internal', 'campus_pool', 'campus_admin_deposit'
     merchant_id VARCHAR(100),                           -- Pour R7: DUPLICATE_REQUEST
     amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),  -- Pour R1, R9
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
 
     -- Localisation (pour R3, R5)
     country VARCHAR(2),                                 -- ISO 3166-1 alpha-2, pour R3
@@ -165,7 +165,7 @@ CREATE TABLE money_requests (
     requester_id UUID NOT NULL REFERENCES users(id),
     target_id UUID NOT NULL REFERENCES users(id),
     amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'fulfilled', 'declined')),
     message TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -186,7 +186,7 @@ CREATE TABLE external_transfers (
     to_email VARCHAR(255) NOT NULL,
     to_campus VARCHAR(100) NOT NULL,
     amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
     status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'completed', 'failed')),
     request_id UUID UNIQUE NOT NULL,
     verified_at TIMESTAMP WITH TIME ZONE,
@@ -227,7 +227,7 @@ CREATE TABLE campus_wallets (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     campus_name VARCHAR(100) UNIQUE NOT NULL REFERENCES peers(campus_name),
     balance NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
-    currency VARCHAR(3) NOT NULL DEFAULT 'EUR',
+    currency VARCHAR(3) NOT NULL DEFAULT 'EPC',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -548,7 +548,7 @@ BEGIN
         transaction_type, direction, status, request_id
     ) VALUES (
         v_tx_id, v_from_wallet.user_id, p_from_wallet_id,
-        'internal', p_amount, 'EUR', 'transfer', 'outgoing', 'approved', p_request_id
+        'internal', p_amount, 'EPC', 'transfer', 'outgoing', 'approved', p_request_id
     );
 
     -- 4. Transaction incoming (destinataire)
@@ -557,7 +557,7 @@ BEGIN
         transaction_type, direction, status, request_id
     ) VALUES (
         v_to_wallet.user_id, v_to_wallet.id,
-        'internal', p_amount, 'EUR', 'transfer', 'incoming', 'approved', uuid_generate_v4()
+        'internal', p_amount, 'EPC', 'transfer', 'incoming', 'approved', uuid_generate_v4()
     );
 
     RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
@@ -615,7 +615,7 @@ BEGIN
         transaction_type, direction, status, request_id
     ) VALUES (
         v_tx_id, v_wallet.user_id, p_wallet_id,
-        'stripe', p_amount, 'EUR', 'deposit', 'incoming', 'approved', p_request_id
+        'stripe', p_amount, 'EPC', 'deposit', 'incoming', 'approved', p_request_id
     );
 
     RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
@@ -668,7 +668,7 @@ BEGIN
         transaction_type, direction, status, request_id
     ) VALUES (
         v_tx_id, v_from_wallet.user_id, p_from_wallet_id,
-        'campus_pool', p_amount, 'EUR', 'transfer', 'outgoing', 'approved', p_request_id
+        'campus_pool', p_amount, 'EPC', 'transfer', 'outgoing', 'approved', p_request_id
     );
 
     RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
@@ -719,7 +719,7 @@ BEGIN
         transaction_type, direction, status, request_id
     ) VALUES (
         v_tx_id, p_to_user_id, v_to_wallet.id,
-        'campus_pool', p_amount, 'EUR', 'transfer', 'incoming', 'approved', p_request_id
+        'campus_pool', p_amount, 'EPC', 'transfer', 'incoming', 'approved', p_request_id
     );
 
     RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'error_message', NULL);
@@ -768,7 +768,7 @@ BEGIN
     )
     SELECT
         v_tx_id, auth.uid(), w.id,
-        'campus_admin_deposit', p_amount, 'EUR', 'deposit', 'incoming', 'approved', p_request_id
+        'campus_admin_deposit', p_amount, 'EPC', 'deposit', 'incoming', 'approved', p_request_id
     FROM wallets w
     INNER JOIN users u ON u.id = w.user_id
     WHERE w.user_id = auth.uid() AND w.status = 'active' AND w.campus = u.campus

@@ -5,11 +5,11 @@ Ce module implémente les 9 règles de détection (R1-R9) avec scoring et
 explicabilité. Optimisé pour une latence p95 < 100ms.
 
 Règles P0 (Bloquant/Rejet):
-    R1 - AMOUNT_HIGH: Montant > 500€
+    R1 - AMOUNT_HIGH: Montant > 2500 EPC
     R4 - VELOCITY_HIGH: ≥ 3 transactions en 5 minutes
     R5 - IP_GEO_MISMATCH: Écart IP/Géoloc > 1000km
     R7 - DUPLICATE_REQUEST: Même montant/marchand en < 2min
-    R9 - SCA_THRESHOLD: Cumul > 150€/jour
+    R9 - SCA_THRESHOLD: Cumul > 750 EPC/jour
 
 Règles P1 (Audit/Alerte):
     R2 - TIME_SUSPICIOUS: Transaction nocturne (00h-06h)
@@ -57,7 +57,7 @@ RULES_CONFIG: dict[str, RuleConfig] = {
         code=ReasonCode.AMOUNT_HIGH,
         weight=30,
         priority="P0",
-        description="Montant supérieur au seuil de 500€",
+        description="Montant supérieur au seuil de 2500 EPC",
     ),
     "R2": RuleConfig(
         code=ReasonCode.TIME_SUSPICIOUS,
@@ -105,18 +105,18 @@ RULES_CONFIG: dict[str, RuleConfig] = {
         code=ReasonCode.SCA_THRESHOLD,
         weight=35,
         priority="P0",
-        description="Seuil journalier PSD2/SCA dépassé (>150€)",
+        description="Seuil journalier PSD2/SCA dépassé (>750 EPC)",
     ),
 }
 
 # Seuils configurables
 THRESHOLDS = {
-    "amount_high_eur": float(os.getenv("THRESHOLD_AMOUNT_HIGH", "500")),
+    "amount_high_epc": float(os.getenv("THRESHOLD_AMOUNT_HIGH", "2500")),
     "velocity_count": int(os.getenv("THRESHOLD_VELOCITY_COUNT", "3")),
     "velocity_window_min": int(os.getenv("THRESHOLD_VELOCITY_WINDOW", "5")),
     "ip_geo_distance_km": float(os.getenv("THRESHOLD_IP_GEO_DISTANCE", "1000")),
     "duplicate_window_min": int(os.getenv("THRESHOLD_DUPLICATE_WINDOW", "2")),
-    "sca_daily_eur": float(os.getenv("THRESHOLD_SCA_DAILY", "150")),
+    "sca_daily_epc": float(os.getenv("THRESHOLD_SCA_DAILY", "750")),
     "night_start_hour": int(os.getenv("THRESHOLD_NIGHT_START", "0")),
     "night_end_hour": int(os.getenv("THRESHOLD_NIGHT_END", "6")),
 }
@@ -277,24 +277,23 @@ class FraudDetectionEngine:
         """
         R1 - AMOUNT_HIGH (P0)
 
-        Vérifie si le montant dépasse le seuil (500€ par défaut).
+        Vérifie si le montant dépasse le seuil (2500 EPC par défaut).
         Transaction inhabituelle pour un profil étudiant.
         """
         config = self.rules_config["R1"]
-        threshold = self.thresholds["amount_high_eur"]
+        threshold = self.thresholds["amount_high_epc"]
 
-        # Convertit en EUR si nécessaire (simplifié, suppose EUR)
-        amount_eur = request.amount if request.currency == "EUR" else request.amount
+        amount = request.amount
 
-        triggered = amount_eur > threshold
+        triggered = amount > threshold
 
         return RuleResult(
             triggered=triggered,
             code=config.code,
             weight=config.weight if triggered else 0,
             threshold=threshold,
-            actual=amount_eur,
-            message=f"Montant {amount_eur}€ > seuil {threshold}€" if triggered else "",
+            actual=amount,
+            message=f"Montant {amount} EPC > seuil {threshold} EPC" if triggered else "",
         )
 
     def _check_r2_time_suspicious(self, request: MLAnalysisRequest) -> RuleResult:
@@ -498,11 +497,11 @@ class FraudDetectionEngine:
         """
         R9 - SCA_THRESHOLD (P0)
 
-        Vérifie si le cumul journalier dépasse le seuil PSD2/SCA (150€).
+        Vérifie si le cumul journalier dépasse le seuil PSD2/SCA (750 EPC).
         Réglementation européenne sur l'authentification forte.
         """
         config = self.rules_config["R9"]
-        threshold = self.thresholds["sca_daily_eur"]
+        threshold = self.thresholds["sca_daily_epc"]
         daily_total = context.get("daily_total", 0.0)
 
         # Cumul avec la transaction actuelle
@@ -515,7 +514,7 @@ class FraudDetectionEngine:
             weight=config.weight if triggered else 0,
             threshold=threshold,
             actual=round(new_total, 2),
-            message=f"Cumul journalier {new_total:.2f}€ > seuil SCA {threshold}€" if triggered else "",
+            message=f"Cumul journalier {new_total:.2f} EPC > seuil SCA {threshold} EPC" if triggered else "",
         )
 
 

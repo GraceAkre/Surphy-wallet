@@ -48,7 +48,7 @@ type VerificationScreenProps = {
 // --- Constantes & Mapping ---
 
 const REASON_DETAILS: Record<string, { icon: any; title: string; description: string }> = {
-  AMOUNT_HIGH: { icon: Zap, title: 'Montant élevé', description: 'Supérieur à 500€ inhabituel' },
+  AMOUNT_HIGH: { icon: Zap, title: 'Montant élevé', description: 'Supérieur à 2500 EPC inhabituel' },
   TIME_SUSPICIOUS: {
     icon: Clock,
     title: 'Horaire suspect',

@@ -418,7 +418,7 @@ if ENVIRONMENT == "development":
             transaction_id=uuid4(),
             user_id=uuid4(),
             amount=amount if not simulate_fraud else 1000.0,  # Déclenche R1
-            currency="EUR",
+            currency="EPC",
             country=country,
             merchant_id="mock_merchant",
             timestamp=datetime.now(timezone.utc),

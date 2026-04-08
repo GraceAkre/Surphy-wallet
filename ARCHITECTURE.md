@@ -192,11 +192,11 @@ flowchart TD
     TX[Transaction Entrante] --> ANALYZE[Analyze]
 
     subgraph "Règles P0 - Bloquantes"
-        R1[R1: Montant > 500€<br/>+30 pts]
+        R1[R1: Montant > 2500 EPC<br/>+30 pts]
         R4[R4: ≥3 tx/5min<br/>+35 pts]
         R5[R5: IP ≠ Géoloc >1000km<br/>+40 pts]
         R7[R7: Doublon <2min<br/>+50 pts]
-        R9[R9: Cumul >150€/jour<br/>+35 pts]
+        R9[R9: Cumul >750 EPC/jour<br/>+35 pts]
     end
 
     subgraph "Règles P1 - Audit"
@@ -220,7 +220,7 @@ flowchart TD
 
 | ID | Code | Priorité | Seuil | Poids | Description |
 |----|------|----------|-------|-------|-------------|
-| R1 | `AMOUNT_HIGH` | P0 | > 500€ | +30 | Montant élevé |
+| R1 | `AMOUNT_HIGH` | P0 | > 2500 EPC | +30 | Montant élevé |
 | R2 | `TIME_SUSPICIOUS` | P1 | 00h-06h | +20 | Heure nocturne |
 | R3 | `LOCATION_CHANGE` | P1 | Pays ≠ | +25 | Changement de pays |
 | R4 | `VELOCITY_HIGH` | P0 | ≥ 3/5min | +35 | Vélocité élevée |
@@ -228,7 +228,7 @@ flowchart TD
 | R6 | `KYC_EXPIRED` | P1 | Expiré | +15 | KYC expiré |
 | R7 | `DUPLICATE_REQUEST` | P0 | < 2min | +50 | Requête dupliquée |
 | R8 | `CAMPUS_NOT_ALLOWED` | P1 | Not in list | +20 | Campus non autorisé |
-| R9 | `SCA_THRESHOLD` | P0 | > 150€/jour | +35 | Seuil SCA PSD2 |
+| R9 | `SCA_THRESHOLD` | P0 | > 750 EPC/jour | +35 | Seuil SCA PSD2 |
 
 ---
 

@@ -38,7 +38,7 @@ type DepositScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Deposit'>;
 };
 
-const QUICK_AMOUNTS = [10, 20, 50, 100, 200];
+const QUICK_AMOUNTS = [50, 100, 250, 500, 1000];
 
 export default function DepositScreen({ navigation }: DepositScreenProps) {
   const { light, success } = useHaptics();
@@ -256,7 +256,7 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
                     selectedQuickAmount === value ? 'text-white' : 'text-ink-primary'
                   }`}
                 >
-                  {value} €
+                  {value} EPC
                 </Text>
               </Pressable>
             ))}
@@ -270,7 +270,7 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
             `}
             style={isFocused ? shadows.soft : undefined}
           >
-            <Text className="text-title1 text-ink-tertiary font-normal mr-3">€</Text>
+            <Text className="text-title1 text-ink-tertiary font-normal mr-3">EPC</Text>
             <View className="w-px h-8 bg-separator-opaque mr-4" />
             <TextInput
               value={amount}
@@ -380,7 +380,7 @@ export default function DepositScreen({ navigation }: DepositScreenProps) {
               <ActivityIndicator color="white" />
             ) : (
               <Text className="text-headline text-white">
-                Déposer {isValidAmount ? `${amount} €` : ''}
+                Déposer {isValidAmount ? `${amount} EPC` : ''}
               </Text>
             )}
           </Pressable>

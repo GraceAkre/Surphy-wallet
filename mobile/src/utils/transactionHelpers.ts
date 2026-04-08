@@ -195,7 +195,7 @@ const RISK_REASONS: Record<string, RiskReason> = {
   AMOUNT_HIGH: {
     code: 'R1',
     title: 'Montant élevé',
-    description: 'Supérieur à 500€ inhabituel',
+    description: 'Supérieur à 2500 EPC inhabituel',
     severity: 'high',
   },
   TIME_SUSPICIOUS: {
@@ -243,7 +243,7 @@ const RISK_REASONS: Record<string, RiskReason> = {
   SCA_THRESHOLD: {
     code: 'R9',
     title: 'Seuil SCA dépassé',
-    description: '> 150€/jour sans authentification forte',
+    description: '> 750 EPC/jour sans authentification forte',
     severity: 'high',
   },
 };

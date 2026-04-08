@@ -48,13 +48,13 @@ class HybridFraudEngine:
     """
 
     # Seuils configurables (depuis env vars ou défauts)
-    THRESHOLD_AMOUNT_HIGH = float(os.getenv("THRESHOLD_AMOUNT_HIGH", "500"))
+    THRESHOLD_AMOUNT_HIGH = float(os.getenv("THRESHOLD_AMOUNT_HIGH", "2500"))
     THRESHOLD_NIGHT_START = int(os.getenv("THRESHOLD_NIGHT_START", "0"))
     THRESHOLD_NIGHT_END = int(os.getenv("THRESHOLD_NIGHT_END", "6"))
     THRESHOLD_VELOCITY_COUNT = int(os.getenv("THRESHOLD_VELOCITY_COUNT", "3"))
     THRESHOLD_IP_GEO_DISTANCE = float(os.getenv("THRESHOLD_IP_GEO_DISTANCE", "1000"))
     THRESHOLD_DUPLICATE_WINDOW = int(os.getenv("THRESHOLD_DUPLICATE_WINDOW", "2"))
-    THRESHOLD_SCA_DAILY = float(os.getenv("THRESHOLD_SCA_DAILY", "150"))
+    THRESHOLD_SCA_DAILY = float(os.getenv("THRESHOLD_SCA_DAILY", "750"))
     ALLOWED_CAMPUSES = os.getenv("ALLOWED_CAMPUSES", "Paris,Lyon,Bordeaux,Lille,Nantes").split(",")
 
     # Seuils de décision ML par défaut (score 0-100)
@@ -148,7 +148,7 @@ class HybridFraudEngine:
                 "contribution": 35,
                 "threshold": self.THRESHOLD_SCA_DAILY,
                 "actual": cumul,
-                "message": f"Cumul journalier {cumul:.2f}€ > seuil SCA {self.THRESHOLD_SCA_DAILY}€",
+                "message": f"Cumul journalier {cumul:.2f} EPC > seuil SCA {self.THRESHOLD_SCA_DAILY} EPC",
             }
 
         # Si doublon ou KYC expiré → block immédiat
@@ -339,7 +339,7 @@ class HybridFraudEngine:
         }
 
         MESSAGES_FR = {
-            "AMOUNT_HIGH": "Montant {actual:.2f}€ > seuil {threshold:.0f}€",
+            "AMOUNT_HIGH": "Montant {actual:.2f} EPC > seuil {threshold:.0f} EPC",
             "TIME_SUSPICIOUS": "Transaction à {actual:.0f}h (plage nocturne {threshold:.0f}h)",
             "LOCATION_CHANGE": "Changement de pays détecté",
             "VELOCITY_HIGH": "{actual:.0f} transactions récentes (seuil: {threshold:.0f})",
@@ -347,7 +347,7 @@ class HybridFraudEngine:
             "KYC_EXPIRED": "Identité non vérifiée (KYC expiré)",
             "DUPLICATE_REQUEST": "Transaction dupliquée détectée",
             "CAMPUS_NOT_ALLOWED": "Campus non autorisé",
-            "SCA_THRESHOLD": "Cumul journalier {actual:.2f}€ > seuil SCA {threshold:.0f}€",
+            "SCA_THRESHOLD": "Cumul journalier {actual:.2f} EPC > seuil SCA {threshold:.0f} EPC",
         }
 
         # Mapping code → flag feature pour vérifier que la règle est réellement active

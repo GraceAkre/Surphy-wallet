@@ -67,8 +67,8 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
 
   // Limits
   const [limitsModalVisible, setLimitsModalVisible] = useState(false);
-  const [monthlyLimit, setMonthlyLimit] = useState(500);
-  const [dailyLimit, setDailyLimit] = useState(150);
+  const [monthlyLimit, setMonthlyLimit] = useState(2500);
+  const [dailyLimit, setDailyLimit] = useState(750);
 
   // --- Fetch Data ---
   const fetchData = useCallback(async () => {
@@ -200,9 +200,9 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
   const adjustLimit = (type: 'monthly' | 'daily', delta: number) => {
     light();
     if (type === 'monthly') {
-      setMonthlyLimit((prev) => Math.max(100, Math.min(5000, prev + delta)));
+      setMonthlyLimit((prev) => Math.max(500, Math.min(25000, prev + delta)));
     } else {
-      setDailyLimit((prev) => Math.max(50, Math.min(1000, prev + delta)));
+      setDailyLimit((prev) => Math.max(250, Math.min(5000, prev + delta)));
     }
   };
 
@@ -388,10 +388,10 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                 {/* Stepper */}
                 <View className="flex-row items-center justify-center gap-4">
                   <Pressable
-                    onPress={() => adjustLimit('monthly', -100)}
-                    disabled={monthlyLimit <= 100}
+                    onPress={() => adjustLimit('monthly', -500)}
+                    disabled={monthlyLimit <= 500}
                     style={({ pressed }) => [
-                      { opacity: monthlyLimit <= 100 ? 0.3 : pressed ? 0.7 : 1 },
+                      { opacity: monthlyLimit <= 500 ? 0.3 : pressed ? 0.7 : 1 },
                     ]}
                     className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
                   >
@@ -399,7 +399,7 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                   </Pressable>
 
                   <View className="flex-row flex-wrap gap-2">
-                    {[200, 500, 1000, 2000].map((value) => (
+                    {[1000, 2500, 5000, 10000].map((value) => (
                       <Pressable
                         key={value}
                         onPress={() => { light(); setMonthlyLimit(value); }}
@@ -415,17 +415,17 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                         <Text className={`text-caption1 font-semibold ${
                           monthlyLimit === value ? 'text-white' : 'text-ink-primary'
                         }`}>
-                          {value} €
+                          {value} EPC
                         </Text>
                       </Pressable>
                     ))}
                   </View>
 
                   <Pressable
-                    onPress={() => adjustLimit('monthly', 100)}
-                    disabled={monthlyLimit >= 5000}
+                    onPress={() => adjustLimit('monthly', 500)}
+                    disabled={monthlyLimit >= 25000}
                     style={({ pressed }) => [
-                      { opacity: monthlyLimit >= 5000 ? 0.3 : pressed ? 0.7 : 1 },
+                      { opacity: monthlyLimit >= 25000 ? 0.3 : pressed ? 0.7 : 1 },
                     ]}
                     className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
                   >
@@ -446,10 +446,10 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                 {/* Stepper */}
                 <View className="flex-row items-center justify-center gap-4">
                   <Pressable
-                    onPress={() => adjustLimit('daily', -50)}
-                    disabled={dailyLimit <= 50}
+                    onPress={() => adjustLimit('daily', -250)}
+                    disabled={dailyLimit <= 250}
                     style={({ pressed }) => [
-                      { opacity: dailyLimit <= 50 ? 0.3 : pressed ? 0.7 : 1 },
+                      { opacity: dailyLimit <= 250 ? 0.3 : pressed ? 0.7 : 1 },
                     ]}
                     className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
                   >
@@ -457,7 +457,7 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                   </Pressable>
 
                   <View className="flex-row flex-wrap gap-2">
-                    {[50, 150, 300, 500].map((value) => (
+                    {[250, 750, 1500, 2500].map((value) => (
                       <Pressable
                         key={value}
                         onPress={() => { light(); setDailyLimit(value); }}
@@ -473,17 +473,17 @@ export default function CardVirtualScreen({ navigation }: CardVirtualScreenProps
                         <Text className={`text-caption1 font-semibold ${
                           dailyLimit === value ? 'text-white' : 'text-ink-primary'
                         }`}>
-                          {value} €
+                          {value} EPC
                         </Text>
                       </Pressable>
                     ))}
                   </View>
 
                   <Pressable
-                    onPress={() => adjustLimit('daily', 50)}
-                    disabled={dailyLimit >= 1000}
+                    onPress={() => adjustLimit('daily', 250)}
+                    disabled={dailyLimit >= 5000}
                     style={({ pressed }) => [
-                      { opacity: dailyLimit >= 1000 ? 0.3 : pressed ? 0.7 : 1 },
+                      { opacity: dailyLimit >= 5000 ? 0.3 : pressed ? 0.7 : 1 },
                     ]}
                     className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center"
                   >
