@@ -96,8 +96,12 @@ class HybridFraudEngine:
             logger.info(f"✅ {len(self.feature_columns)} features chargées")
 
         if os.path.exists(shap_path):
-            self.explainer = joblib.load(shap_path)
-            logger.info("✅ SHAP explainer chargé")
+            try:
+                self.explainer = joblib.load(shap_path)
+                logger.info("✅ SHAP explainer chargé")
+            except Exception as e:
+                logger.warning(f"⚠️ SHAP explainer non chargé (pickle incompatible): {e}")
+                self.explainer = None
 
     # ============================================================
     # ÉTAPE 1 — Hard-block rules (< 1ms)
