@@ -416,12 +416,14 @@ class SupabaseClient:
         return response.data[0] if response.data else None
 
     async def get_user_wallet(self, user_id: str) -> dict[str, Any] | None:
-        """Récupère le wallet principal d'un utilisateur."""
+        """Récupère le wallet principal d'un utilisateur (actif, plus gros solde)."""
         client = self._get_client()
         response = (
             client.table("wallets")
             .select("*")
             .eq("user_id", user_id)
+            .eq("status", "active")
+            .order("balance", desc=True)
             .limit(1)
             .execute()
         )
