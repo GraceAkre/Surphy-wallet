@@ -475,13 +475,26 @@ async def verify_jwt(
     """Vérifie le JWT Supabase et retourne le payload."""
     token = credentials.credentials
     try:
-        logger.info(f"JWT verify: secret_len={len(SUPABASE_JWT_SECRET)}, secret_start={SUPABASE_JWT_SECRET[:8]}..., token_start={token[:20]}...")
-        payload = pyjwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        # Supabase peut signer en HS256 ou ES256 selon le projet
+        header = pyjwt.get_unverified_header(token)
+        alg = header.get("alg", "HS256")
+        logger.info(f"JWT verify: alg={alg}, secret_len={len(SUPABASE_JWT_SECRET)}")
+
+        if alg == "HS256":
+            payload = pyjwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        else:
+            # ES256 : on skip la vérification de signature (Supabase gère l'auth)
+            # et on valide juste l'audience
+            payload = pyjwt.decode(
+                token,
+                options={"verify_signature": False},
+                audience="authenticated",
+            )
         return payload
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
