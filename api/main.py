@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+import base64
 import hashlib
 import httpx
 import jwt as pyjwt
@@ -465,7 +466,11 @@ class IntercampusSendResponse(PydanticBaseModel):
 # INTERCAMPUS — JWT Auth
 # =============================================================================
 
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+_raw_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
+try:
+    SUPABASE_JWT_SECRET = base64.b64decode(_raw_jwt_secret)
+except Exception:
+    SUPABASE_JWT_SECRET = _raw_jwt_secret.encode()
 security_scheme = HTTPBearer()
 
 
