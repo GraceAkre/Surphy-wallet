@@ -4,7 +4,7 @@
 # ==============================================================================
 
 # --- Stage 1: Dependencies ---
-FROM python:3.10-slim AS deps
+FROM python:3.13-slim AS deps
 
 WORKDIR /app
 
@@ -14,20 +14,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 
-# Installer les dependances de production uniquement
+# Installer les dependances depuis pyproject.toml (sans builder le package)
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir . \
-    && pip install --no-cache-dir joblib numpy scikit-learn xgboost shap
+    && pip install --no-cache-dir \
+       fastapi uvicorn[standard] pydantic pydantic-settings supabase python-dotenv httpx PyJWT \
+       joblib numpy scikit-learn xgboost shap
 
 # --- Stage 2: Runtime ---
-FROM python:3.10-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 WORKDIR /app
 
 # Copier les packages Python installes depuis le stage deps
-COPY --from=deps /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=deps /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=deps /usr/local/bin /usr/local/bin
 
 # Copier le code source
