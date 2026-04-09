@@ -651,7 +651,7 @@ async def intercampus_receive(
         # 5. Enregistre dans external_transfers
         try:
             await db.record_external_transfer({
-                "from_wallet_id": payload.source_wallet_id,
+                "from_wallet_id": actual_wallet_id,
                 "to_email": payload.destination_user_id or "campus_wallet",
                 "to_campus": payload.source_campus_id or "unknown",
                 "amount": payload.amount,
@@ -696,12 +696,14 @@ async def intercampus_send(
     async with get_db_session(service_role=True, request_id=request_id) as db:
         # 1. Vérifie que le user possède le wallet source
         user_wallet = await db.get_user_wallet(user_id)
-        logger.info(f"Wallet check: user_id={user_id}, wallet_id={user_wallet.get('id') if user_wallet else None}, payload_source={payload.source_wallet_id}")
-        if not user_wallet or str(user_wallet["id"]) != str(payload.source_wallet_id):
+        if not user_wallet:
             return IntercampusSendResponse(
                 success=False, status="unauthorized",
-                message="You don't own the source wallet",
+                message="No wallet found for this user",
             )
+
+        # Utilise le wallet trouvé (l'user peut avoir plusieurs wallets campus)
+        actual_wallet_id = str(user_wallet["id"])
 
         # 2. Vérifie le solde
         if float(user_wallet["balance"]) < payload.amount:
@@ -728,7 +730,7 @@ async def intercampus_send(
                     f"{payload.destination_campus_api_url}/intercampus-receive",
                     json={
                         "transaction_id": tx_id,
-                        "source_wallet_id": payload.source_wallet_id,
+                        "source_wallet_id": actual_wallet_id,
                         "destination_wallet_id": payload.destination_wallet_id,
                         "destination_user_id": payload.destination_user_id,
                         "amount": payload.amount,
@@ -771,7 +773,7 @@ async def intercampus_send(
             await db.create_transaction({
                 "id": tx_id,
                 "user_id": user_id,
-                "wallet_id": payload.source_wallet_id,
+                "wallet_id": actual_wallet_id,
                 "amount": payload.amount,
                 "currency": payload.currency,
                 "country": "FR",
@@ -790,7 +792,7 @@ async def intercampus_send(
         # 6. Enregistre dans external_transfers
         try:
             await db.record_external_transfer({
-                "from_wallet_id": payload.source_wallet_id,
+                "from_wallet_id": actual_wallet_id,
                 "to_email": payload.destination_user_id or "campus_wallet",
                 "to_campus": "external",
                 "amount": payload.amount,
