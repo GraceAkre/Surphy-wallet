@@ -475,6 +475,7 @@ async def verify_jwt(
     """Vérifie le JWT Supabase et retourne le payload."""
     token = credentials.credentials
     try:
+        logger.info(f"JWT verify: secret_len={len(SUPABASE_JWT_SECRET)}, secret_start={SUPABASE_JWT_SECRET[:8]}..., token_start={token[:20]}...")
         payload = pyjwt.decode(
             token,
             SUPABASE_JWT_SECRET,
@@ -484,7 +485,8 @@ async def verify_jwt(
         return payload
     except pyjwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except pyjwt.InvalidTokenError:
+    except pyjwt.InvalidTokenError as e:
+        logger.error(f"JWT invalid: {type(e).__name__}: {e}")
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
