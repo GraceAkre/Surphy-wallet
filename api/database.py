@@ -564,6 +564,7 @@ def _get_settings() -> tuple[str, str, str]:
     if not url or not anon_key:
         raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set")
 
+    logger.info(f"Supabase URL: '{url}' (len={len(url)})")
     return url, anon_key, service_key
 
 
