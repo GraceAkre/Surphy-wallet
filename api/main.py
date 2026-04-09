@@ -696,7 +696,8 @@ async def intercampus_send(
     async with get_db_session(service_role=True, request_id=request_id) as db:
         # 1. Vérifie que le user possède le wallet source
         user_wallet = await db.get_user_wallet(user_id)
-        if not user_wallet or user_wallet["id"] != payload.source_wallet_id:
+        logger.info(f"Wallet check: user_id={user_id}, wallet_id={user_wallet.get('id') if user_wallet else None}, payload_source={payload.source_wallet_id}")
+        if not user_wallet or str(user_wallet["id"]) != str(payload.source_wallet_id):
             return IntercampusSendResponse(
                 success=False, status="unauthorized",
                 message="You don't own the source wallet",
