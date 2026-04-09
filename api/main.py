@@ -87,8 +87,8 @@ app = FastAPI(
     description="API de détection de fraude en temps réel pour Smart Wallet",
     version=API_VERSION,
     lifespan=lifespan,
-    docs_url="/docs" if ENVIRONMENT != "production" else None,
-    redoc_url="/redoc" if ENVIRONMENT != "production" else None,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 
