@@ -82,6 +82,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   // External peers state
   const [externalPeers, setExternalPeers] = useState<Peer[]>([]);
   const [selectedPeer, setSelectedPeer] = useState<Peer | null>(null);
+  const [modalTab, setModalTab] = useState<'user' | 'group'>('user');
   const [externalEmail, setExternalEmail] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupResult, setLookupResult] = useState<{ user_id: string; full_name: string; campus: string } | null>(null);
@@ -163,6 +164,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
       setExternalEmail('');
     } else {
       setSearchQuery('');
+      setModalTab('user');
       setModalVisible(true);
     }
   };
@@ -184,10 +186,11 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
   const handlePickExternalPeer = (peer: Peer) => {
     light();
     setSelectedPeer(peer);
+    setRecipient(null);
     setLookupResult(null);
     setLookupError(null);
     setExternalEmail('');
-    setModalVisible(false);
+    // Garde le modal ouvert : l'utilisateur doit maintenant saisir l'email destinataire
   };
 
   const handleLookupExternalUser = async () => {
@@ -216,10 +219,22 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
         peer: selectedPeer,
         externalUserId: result.user_id,
       });
+      // Ferme le modal et réinitialise l'état de sélection groupe
+      setModalVisible(false);
+      setSelectedPeer(null);
+      setExternalEmail('');
     } else {
       setLookupError(result.message || 'Utilisateur non trouvé sur ce campus.');
     }
     setLookupLoading(false);
+  };
+
+  const handleCancelGroupSelection = () => {
+    light();
+    setSelectedPeer(null);
+    setExternalEmail('');
+    setLookupError(null);
+    setLookupResult(null);
   };
 
   const handleSend = async () => {
@@ -419,7 +434,7 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
                       )}
                     </View>
                     <Text className="text-footnote text-ink-tertiary">
-                      {recipient.email}
+                      {recipient.isExternal ? 'Transfert intercampus' : recipient.email}
                     </Text>
                   </View>
                 </View>
@@ -442,55 +457,6 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
             )}
           </Pressable>
 
-          {/* External peer lookup — email input */}
-          {selectedPeer && !lookupResult && (
-            <Card variant="elevated" padding="lg" className="mb-6">
-              <View className="flex-row items-center gap-2 mb-3">
-                <Globe size={18} color="#3B82F6" />
-                <Text className="text-headline text-ink-primary">
-                  {selectedPeer.campus_name}
-                </Text>
-              </View>
-              <Text className="text-footnote text-ink-tertiary mb-3">
-                Entrez l'email de l'étudiant sur ce campus pour le retrouver.
-              </Text>
-              <View className="flex-row items-center gap-2">
-                <View className="flex-1">
-                  <TextInput
-                    value={externalEmail}
-                    onChangeText={setExternalEmail}
-                    placeholder="email@epitech.eu"
-                    placeholderTextColor="#86868B"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    className="bg-background rounded-xl px-4 py-3 text-body text-ink-primary border-2 border-separator-opaque"
-                    style={{ padding: 0, paddingHorizontal: 16, paddingVertical: 12 }}
-                  />
-                </View>
-                <Pressable
-                  onPress={handleLookupExternalUser}
-                  disabled={!externalEmail.trim() || lookupLoading}
-                  style={({ pressed }) => [
-                    shadows.primaryButton,
-                    { opacity: !externalEmail.trim() ? 0.5 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] },
-                  ]}
-                  className="bg-primary rounded-xl px-4 py-3 items-center justify-center"
-                >
-                  {lookupLoading ? (
-                    <ActivityIndicator color="white" size="small" />
-                  ) : (
-                    <Search size={20} color="white" />
-                  )}
-                </Pressable>
-              </View>
-              {lookupError && (
-                <Text className="text-footnote text-danger font-medium mt-2">
-                  {lookupError}
-                </Text>
-              )}
-            </Card>
-          )}
 
           {/* Amount Card */}
           <Card variant="elevated" padding="lg" className="mb-6">
@@ -672,102 +638,236 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
               Sélectionner un destinataire
             </Text>
             <Pressable
-              onPress={() => setModalVisible(false)}
+              onPress={() => {
+                setModalVisible(false);
+                setSelectedPeer(null);
+                setExternalEmail('');
+                setLookupError(null);
+              }}
               className="w-9 h-9 bg-fill-tertiary rounded-full items-center justify-center"
             >
               <X size={18} color="#1D1D1F" />
             </Pressable>
           </View>
 
-          {/* Search Bar */}
-          <View className="px-5 py-3">
-            <View className="flex-row items-center bg-fill-tertiary rounded-xl px-4 py-3">
-              <Search size={18} color="#86868B" />
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Rechercher par nom ou email..."
-                placeholderTextColor="#86868B"
-                autoCapitalize="none"
-                autoCorrect={false}
-                className="flex-1 text-body text-ink-primary ml-3"
-                style={{ padding: 0 }}
-              />
-              {searchQuery.length > 0 && (
-                <Pressable onPress={() => setSearchQuery('')}>
-                  <X size={16} color="#86868B" />
-                </Pressable>
-              )}
-            </View>
+          {/* Tabs: Utilisateur / Groupe */}
+          <View className="flex-row px-5 py-3 gap-2">
+            <Pressable
+              onPress={() => {
+                setModalTab('user');
+                setSelectedPeer(null);
+                setExternalEmail('');
+                setLookupError(null);
+              }}
+              className={`flex-1 py-3 rounded-xl items-center ${modalTab === 'user' ? 'bg-primary' : 'bg-fill-tertiary'}`}
+            >
+              <View className="flex-row items-center gap-2">
+                <User size={16} color={modalTab === 'user' ? '#FFFFFF' : '#6E6E73'} />
+                <Text className={`text-subheadline font-semibold ${modalTab === 'user' ? 'text-white' : 'text-ink-secondary'}`}>
+                  Utilisateur
+                </Text>
+              </View>
+            </Pressable>
+            <Pressable
+              onPress={() => setModalTab('group')}
+              className={`flex-1 py-3 rounded-xl items-center ${modalTab === 'group' ? 'bg-primary' : 'bg-fill-tertiary'}`}
+            >
+              <View className="flex-row items-center gap-2">
+                <Globe size={16} color={modalTab === 'group' ? '#FFFFFF' : '#6E6E73'} />
+                <Text className={`text-subheadline font-semibold ${modalTab === 'group' ? 'text-white' : 'text-ink-secondary'}`}>
+                  Groupe
+                </Text>
+              </View>
+            </Pressable>
           </View>
 
-          {/* Users List */}
-          {usersLoading ? (
-            <View className="flex-1 items-center justify-center">
-              <ActivityIndicator size="large" color="#3B82F6" />
-              <Text className="text-footnote text-ink-tertiary mt-3">
-                Chargement des utilisateurs...
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredUsers}
-              keyExtractor={(item) => item.id}
-              renderItem={renderUserItem}
-              keyboardShouldPersistTaps="handled"
-              ItemSeparatorComponent={() => (
-                <View className="h-px bg-separator-opaque ml-16 mr-5" />
-              )}
-              ListHeaderComponent={
-                <>
-                  {/* External Peers Section */}
-                  {externalPeers.length > 0 && !searchQuery && (
-                    <View className="pb-2">
-                      <Text className="text-caption1 text-ink-tertiary uppercase tracking-wider font-semibold px-5 pt-3 pb-2">
-                        Groupes externes
+          {modalTab === 'user' ? (
+            <>
+              {/* Search Bar */}
+              <View className="px-5 py-3">
+                <View className="flex-row items-center bg-fill-tertiary rounded-xl px-4 py-3">
+                  <Search size={18} color="#86868B" />
+                  <TextInput
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Rechercher par nom ou email..."
+                    placeholderTextColor="#86868B"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    className="flex-1 text-body text-ink-primary ml-3"
+                    style={{ padding: 0 }}
+                  />
+                  {searchQuery.length > 0 && (
+                    <Pressable onPress={() => setSearchQuery('')}>
+                      <X size={16} color="#86868B" />
+                    </Pressable>
+                  )}
+                </View>
+              </View>
+
+              {/* Users List */}
+              {usersLoading ? (
+                <View className="flex-1 items-center justify-center">
+                  <ActivityIndicator size="large" color="#3B82F6" />
+                  <Text className="text-footnote text-ink-tertiary mt-3">
+                    Chargement des utilisateurs...
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={filteredUsers}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderUserItem}
+                  keyboardShouldPersistTaps="handled"
+                  ItemSeparatorComponent={() => (
+                    <View className="h-px bg-separator-opaque ml-16 mr-5" />
+                  )}
+                  ListEmptyComponent={
+                    <View className="flex-1 items-center justify-center px-8 py-12">
+                      <User size={40} color="#86868B" />
+                      <Text className="text-body text-ink-secondary mt-3 text-center">
+                        {searchQuery
+                          ? 'Aucun utilisateur trouvé'
+                          : 'Aucun utilisateur disponible'}
                       </Text>
-                      {externalPeers.map((peer) => (
-                        <Pressable
-                          key={peer.id}
-                          onPress={() => handlePickExternalPeer(peer)}
-                          style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
-                          className="flex-row items-center px-5 py-3.5"
-                        >
-                          <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
-                            <Globe size={20} color="#3B82F6" />
-                          </View>
-                          <View className="ml-3 flex-1">
-                            <Text className="text-body text-ink-primary font-semibold">
-                              {peer.campus_name}
-                            </Text>
-                            <Text className="text-footnote text-ink-tertiary">
-                              Transfert intercampus
-                            </Text>
-                          </View>
-                          <View className="bg-blue-50 rounded-full px-2.5 py-1">
-                            <Text className="text-caption2 text-primary font-semibold">EXTERNE</Text>
-                          </View>
-                        </Pressable>
-                      ))}
-                      <View className="h-px bg-separator-opaque mx-5 mt-1" />
-                      <Text className="text-caption1 text-ink-tertiary uppercase tracking-wider font-semibold px-5 pt-3 pb-2">
-                        Étudiants du campus
+                    </View>
+                  }
+            />
+              )}
+            </>
+          ) : (
+            /* Group Tab */
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              className="flex-1"
+            >
+              {!selectedPeer ? (
+                /* Étape 1 : liste des groupes externes */
+                <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 40 }}>
+                  {externalPeers.length > 0 ? (
+                    externalPeers.map((peer) => (
+                      <Pressable
+                        key={peer.id}
+                        onPress={() => handlePickExternalPeer(peer)}
+                        style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                        className="flex-row items-center px-5 py-4"
+                      >
+                        <View className="w-12 h-12 bg-blue-100 rounded-2xl items-center justify-center">
+                          <Globe size={24} color="#3B82F6" />
+                        </View>
+                        <View className="ml-4 flex-1">
+                          <Text className="text-body text-ink-primary font-semibold">
+                            {peer.campus_name}
+                          </Text>
+                          <Text className="text-footnote text-ink-tertiary">
+                            Transfert intercampus
+                          </Text>
+                        </View>
+                        <ChevronRight size={18} color="#86868B" />
+                      </Pressable>
+                    ))
+                  ) : (
+                    <View className="flex-1 items-center justify-center px-8 py-12">
+                      <Globe size={40} color="#86868B" />
+                      <Text className="text-body text-ink-secondary mt-3 text-center">
+                        Aucun groupe externe disponible
                       </Text>
                     </View>
                   )}
-                </>
-              }
-              ListEmptyComponent={
-                <View className="flex-1 items-center justify-center px-8 py-12">
-                  <User size={40} color="#86868B" />
-                  <Text className="text-body text-ink-secondary mt-3 text-center">
-                    {searchQuery
-                      ? 'Aucun utilisateur trouvé'
-                      : 'Aucun utilisateur disponible'}
+                </ScrollView>
+              ) : (
+                /* Étape 2 : saisie email du destinataire sur le groupe sélectionné */
+                <ScrollView
+                  className="flex-1"
+                  contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 40 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Carte du groupe sélectionné avec bouton retour */}
+                  <View className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-5 flex-row items-center">
+                    <View className="w-12 h-12 bg-blue-100 rounded-2xl items-center justify-center">
+                      <Globe size={24} color="#3B82F6" />
+                    </View>
+                    <View className="ml-3 flex-1">
+                      <Text className="text-body text-ink-primary font-semibold">
+                        {selectedPeer.campus_name}
+                      </Text>
+                      <Text className="text-footnote text-ink-tertiary">
+                        Groupe externe sélectionné
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={handleCancelGroupSelection}
+                      className="w-8 h-8 bg-white rounded-full items-center justify-center"
+                    >
+                      <X size={16} color="#6E6E73" />
+                    </Pressable>
+                  </View>
+
+                  <Text className="text-headline text-ink-primary mb-2">
+                    Email du destinataire
                   </Text>
-                </View>
-              }
-            />
+                  <Text className="text-footnote text-ink-tertiary mb-4 leading-5">
+                    Entrez l'email de la personne à qui vous voulez envoyer des EPC sur ce groupe.
+                  </Text>
+
+                  <View className="flex-row items-center bg-fill-tertiary rounded-xl px-4 py-3 mb-4">
+                    <Search size={18} color="#86868B" />
+                    <TextInput
+                      value={externalEmail}
+                      onChangeText={(text) => {
+                        setExternalEmail(text);
+                        if (lookupError) setLookupError(null);
+                      }}
+                      placeholder="prenom.nom@epitech.digital"
+                      placeholderTextColor="#86868B"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      keyboardType="email-address"
+                      className="flex-1 text-body text-ink-primary ml-3"
+                      style={{ padding: 0 }}
+                      onSubmitEditing={handleLookupExternalUser}
+                      returnKeyType="search"
+                    />
+                    {externalEmail.length > 0 && (
+                      <Pressable onPress={() => setExternalEmail('')}>
+                        <X size={16} color="#86868B" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {lookupError && (
+                    <View className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">
+                      <Text className="text-footnote text-red-600">
+                        {lookupError}
+                      </Text>
+                    </View>
+                  )}
+
+                  <Pressable
+                    onPress={handleLookupExternalUser}
+                    disabled={!externalEmail.trim() || lookupLoading}
+                    style={({ pressed }) => [
+                      externalEmail.trim() && !lookupLoading ? shadows.primaryButton : undefined,
+                      {
+                        transform: [{ scale: pressed && externalEmail.trim() ? 0.98 : 1 }],
+                        opacity: !externalEmail.trim() || lookupLoading ? 0.5 : 1,
+                      },
+                    ]}
+                    className={`rounded-button py-4 items-center justify-center flex-row ${
+                      externalEmail.trim() && !lookupLoading ? 'bg-primary' : 'bg-ink-disabled'
+                    }`}
+                  >
+                    {lookupLoading ? (
+                      <ActivityIndicator color="white" />
+                    ) : (
+                      <Text className="text-headline text-white">
+                        Rechercher l'utilisateur
+                      </Text>
+                    )}
+                  </Pressable>
+                </ScrollView>
+              )}
+            </KeyboardAvoidingView>
           )}
         </SafeAreaView>
       </Modal>

@@ -75,10 +75,12 @@ export default function InterCampusTransferScreen() {
 
   const buildCampusList = (peers: Peer[], wallets: CampusWallet[]): CampusInfo[] => {
     const walletMap = new Map(wallets.map((w) => [w.campus_name, w.balance]));
-    return peers.map((p) => ({
-      name: p.campus_name,
-      balance: walletMap.has(p.campus_name) ? walletMap.get(p.campus_name)! : null,
-    }));
+    return peers
+      .filter((p) => !p.is_external)
+      .map((p) => ({
+        name: p.campus_name,
+        balance: walletMap.has(p.campus_name) ? walletMap.get(p.campus_name)! : null,
+      }));
   };
 
   const fetchData = useCallback(async () => {

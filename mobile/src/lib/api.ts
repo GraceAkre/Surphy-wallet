@@ -458,7 +458,13 @@ export async function sendIntercampusTransfer(params: {
       }),
     });
 
-    return await response.json();
+    const text = await response.text();
+    console.log('Intercampus send response:', response.status, text.substring(0, 500));
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { success: false, message: `Erreur serveur (${response.status}): ${text.substring(0, 200)}` };
+    }
   } catch (err) {
     console.error('Intercampus send failed:', err);
     return { success: false, message: 'Erreur lors du transfert intercampus.' };

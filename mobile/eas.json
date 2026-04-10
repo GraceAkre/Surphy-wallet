@@ -15,13 +15,16 @@
     },
     "preview": {
       "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://surphy-wallet-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://surphy-wallet.onrender.com"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://surphy-wallet-api.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://surphy-wallet.onrender.com"
       }
     }
   },
