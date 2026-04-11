@@ -138,12 +138,12 @@ export function getMerchantName(tx: Transaction): string {
     }
   }
 
-  // Intercampus transfers: try to show the recipient/source email or name
+  // Intercampus transfers: prefer full name, fallback to email
   if (tx.merchant_id.startsWith('intercampus:')) {
     const intercampusMeta = (tx.reasons_detail as any)?.intercampus;
     const label =
-      intercampusMeta?.destination_email ||
       intercampusMeta?.destination_name ||
+      intercampusMeta?.destination_email ||
       tx.merchant_id.slice('intercampus:'.length);
     return tx.direction === 'incoming'
       ? `Reçu de ${label}`
