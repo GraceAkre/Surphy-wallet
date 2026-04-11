@@ -65,7 +65,6 @@ export async function getFlaggedTransactions(limit = 10): Promise<Transaction[]>
   const { data, error } = await supabase
     .from('transactions')
     .select('*')
-    .not('score_ml', 'is', null)
     .in('status', ['pending', 'flagged', 'blocked'])
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -88,7 +87,6 @@ export async function getAllTransactions(
   let query = supabase
     .from('transactions')
     .select('*')
-    .not('score_ml', 'is', null)
     .order('created_at', { ascending: false })
     .range(page * pageSize, (page + 1) * pageSize - 1);
 

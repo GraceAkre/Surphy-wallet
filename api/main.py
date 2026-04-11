@@ -627,6 +627,8 @@ async def intercampus_receive(
             ).eq("id", payload.destination_wallet_id).execute()
 
         # 4. Enregistre la transaction
+        # Note : le schéma transactions n'a pas de colonne source_campus_code / external_tx_id / type.
+        # On stocke les métadonnées intercampus dans merchant_id + reasons_detail pour ne pas les perdre.
         tx_id = str(uuid4())
         try:
             await db.create_transaction({
@@ -641,12 +643,18 @@ async def intercampus_receive(
                 "status": "approved",
                 "request_id": request_id,
                 "provider": "intercampus",
-                "source_campus_code": payload.source_campus_id,
-                "external_tx_id": payload.transaction_id,
-                "type": "intercampus_receive",
+                "merchant_id": f"intercampus:{payload.source_campus_id or 'unknown'}",
+                "reasons_detail": {
+                    "intercampus": {
+                        "source_campus_id": payload.source_campus_id,
+                        "source_wallet_id": payload.source_wallet_id,
+                        "initiator_user_id": payload.initiator_user_id,
+                        "external_tx_id": payload.transaction_id,
+                    }
+                },
             })
         except Exception as e:
-            logger.warning(f"Failed to record intercampus transaction: {e}")
+            logger.error(f"❌ Failed to record incoming intercampus tx {tx_id}: {e}", exc_info=True)
 
         # 5. Enregistre dans external_transfers
         try:
@@ -769,6 +777,8 @@ async def intercampus_send(
             )
 
         # 5. Enregistre la transaction locale
+        # Note : le schéma transactions n'a pas de colonne destination_wallet_id / external_tx_id.
+        # On stocke les métadonnées intercampus dans merchant_id + reasons_detail pour ne pas les perdre.
         try:
             await db.create_transaction({
                 "id": tx_id,
@@ -782,12 +792,18 @@ async def intercampus_send(
                 "status": "approved",
                 "request_id": request_id,
                 "provider": "intercampus",
-                "destination_wallet_id": payload.destination_wallet_id,
-                "external_tx_id": destination_tx_id,
-                "type": "intercampus_send",
+                "merchant_id": f"intercampus:{payload.destination_wallet_id}",
+                "reasons_detail": {
+                    "intercampus": {
+                        "destination_wallet_id": payload.destination_wallet_id,
+                        "destination_user_id": payload.destination_user_id,
+                        "destination_campus_api_url": payload.destination_campus_api_url,
+                        "external_tx_id": destination_tx_id,
+                    }
+                },
             })
         except Exception as e:
-            logger.warning(f"Failed to record outgoing intercampus tx: {e}")
+            logger.error(f"❌ Failed to record outgoing intercampus tx {tx_id}: {e}", exc_info=True)
 
         # 6. Enregistre dans external_transfers
         try:
