@@ -252,6 +252,8 @@ export default function CardPaymentScreen({ navigation }: CardPaymentScreenProps
           destinationCampusApiUrl: recipient.peer.base_url,
           destinationApiKey: recipient.peer.api_key_hash || '',
           destinationUserId: recipient.externalUserId,
+          destinationEmail: recipient.email || undefined,
+          destinationName: recipient.name,
           amount: numericAmount,
         });
 

@@ -445,6 +445,8 @@ class IntercampusSendRequest(PydanticBaseModel):
     destination_campus_api_url: str
     destination_api_key: str
     destination_user_id: str | None = None
+    destination_email: str | None = None
+    destination_name: str | None = None
     amount: float
     currency: str = "EPC"
     description: str | None = None
@@ -779,6 +781,12 @@ async def intercampus_send(
         # 5. Enregistre la transaction locale
         # Note : le schéma transactions n'a pas de colonne destination_wallet_id / external_tx_id.
         # On stocke les métadonnées intercampus dans merchant_id + reasons_detail pour ne pas les perdre.
+        # merchant_id contient l'email du destinataire si disponible, sinon le wallet_id en fallback.
+        merchant_label = (
+            f"intercampus:{payload.destination_email}"
+            if payload.destination_email
+            else f"intercampus:{payload.destination_wallet_id}"
+        )
         try:
             await db.create_transaction({
                 "id": tx_id,
@@ -792,11 +800,13 @@ async def intercampus_send(
                 "status": "approved",
                 "request_id": request_id,
                 "provider": "intercampus",
-                "merchant_id": f"intercampus:{payload.destination_wallet_id}",
+                "merchant_id": merchant_label[:100],  # VARCHAR(100)
                 "reasons_detail": {
                     "intercampus": {
                         "destination_wallet_id": payload.destination_wallet_id,
                         "destination_user_id": payload.destination_user_id,
+                        "destination_email": payload.destination_email,
+                        "destination_name": payload.destination_name,
                         "destination_campus_api_url": payload.destination_campus_api_url,
                         "external_tx_id": destination_tx_id,
                     }

@@ -430,6 +430,8 @@ export async function sendIntercampusTransfer(params: {
   destinationCampusApiUrl: string;
   destinationApiKey: string;
   destinationUserId: string;
+  destinationEmail?: string;
+  destinationName?: string;
   amount: number;
   currency?: string;
   description?: string;
@@ -452,6 +454,8 @@ export async function sendIntercampusTransfer(params: {
         destination_campus_api_url: params.destinationCampusApiUrl,
         destination_api_key: params.destinationApiKey,
         destination_user_id: params.destinationUserId,
+        destination_email: params.destinationEmail,
+        destination_name: params.destinationName,
         amount: params.amount,
         currency: params.currency || 'EPC',
         description: params.description,

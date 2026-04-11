@@ -138,6 +138,18 @@ export function getMerchantName(tx: Transaction): string {
     }
   }
 
+  // Intercampus transfers: try to show the recipient/source email or name
+  if (tx.merchant_id.startsWith('intercampus:')) {
+    const intercampusMeta = (tx.reasons_detail as any)?.intercampus;
+    const label =
+      intercampusMeta?.destination_email ||
+      intercampusMeta?.destination_name ||
+      tx.merchant_id.slice('intercampus:'.length);
+    return tx.direction === 'incoming'
+      ? `Reçu de ${label}`
+      : `Transfert à ${label}`;
+  }
+
   return MERCHANT_NAMES[tx.merchant_id] || tx.merchant_id;
 }
 
