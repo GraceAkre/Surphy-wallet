@@ -12,6 +12,22 @@ Surphy Wallet analyse chaque transaction via 9 règles de détection (R1-R9) et 
 | 30-69 | REVIEW |
 | 70-100 | BLOCK |
 
+### Sensibilités ML (presets)
+
+Le score ML est toujours calculé de la même manière (somme des poids des règles déclenchées). Ce qui change selon la sensibilité, ce sont les **seuils de décision** :
+
+| Preset | Approve (score <) | Review | Block (score >=) |
+|--------|-------------------|--------|-------------------|
+| **Souple** | < 50 | 50-79 | >= 80 |
+| **Normal** (défaut) | < 30 | 30-69 | >= 70 |
+| **Strict** | < 20 | 20-49 | >= 50 |
+
+- **Souple** : moins de faux positifs, adapté à un usage courant
+- **Normal** : équilibre entre sécurité et fluidité
+- **Strict** : aucune fraude composée ne passe, plus de transactions en review/block
+
+La sensibilité se configure depuis le **profil analyste** dans l'application. Le changement s'applique en temps réel à toutes les nouvelles transactions.
+
 ## Stack Technique
 
 | Composant | Technologie |

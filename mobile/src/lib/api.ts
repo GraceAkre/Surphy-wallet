@@ -27,7 +27,7 @@ async function scoreAndUpdate(
       );
     }
   } catch (err) {
-    console.warn('ML scoring skipped:', err);
+    console.error('[ML] scoring failed:', err);
   }
 }
 
