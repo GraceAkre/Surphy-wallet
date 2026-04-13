@@ -21,7 +21,7 @@ export async function scoreTransaction(
 ): Promise<MLResult | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(`${ML_API_URL}/v1/ml`, {
       method: 'POST',
