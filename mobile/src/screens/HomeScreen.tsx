@@ -232,7 +232,7 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
       </Text>
 
       {/* Quick Actions */}
-      <View className="flex-row gap-2">
+      <View className="flex-row gap-1.5">
         <Pressable
           onPress={() => {
             light();
@@ -242,10 +242,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             shadows.primaryButton,
             { flex: 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
           ]}
-          className="bg-primary rounded-button py-3.5 flex-row justify-center items-center"
+          className="bg-primary rounded-button py-3.5 px-2 flex-row justify-center items-center"
         >
           <ArrowUpRight size={16} color="white" style={{ marginRight: 6 }} />
-          <Text className="text-subheadline font-semibold text-white">Envoyer</Text>
+          <Text className="text-footnote font-semibold text-white" numberOfLines={1} adjustsFontSizeToFit>Envoyer</Text>
         </Pressable>
 
         <Pressable
@@ -257,10 +257,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             shadows.soft,
             { flex: 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
           ]}
-          className="bg-surface border border-separator-opaque rounded-button py-3.5 flex-row justify-center items-center"
+          className="bg-surface border border-separator-opaque rounded-button py-3.5 px-2 flex-row justify-center items-center"
         >
           <ArrowDownLeft size={16} color="#3B82F6" style={{ marginRight: 6 }} />
-          <Text className="text-subheadline font-semibold text-primary">Recevoir</Text>
+          <Text className="text-footnote font-semibold text-primary" numberOfLines={1} adjustsFontSizeToFit>Recevoir</Text>
         </Pressable>
 
         <Pressable
@@ -272,10 +272,10 @@ export default function HomeScreen({ navigation }: HomeScreenProps) {
             shadows.soft,
             { flex: 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
           ]}
-          className="bg-surface border border-separator-opaque rounded-button py-3.5 flex-row justify-center items-center"
+          className="bg-surface border border-separator-opaque rounded-button py-3.5 px-2 flex-row justify-center items-center"
         >
           <Plus size={16} color="#3B82F6" style={{ marginRight: 6 }} />
-          <Text className="text-subheadline font-semibold text-primary">Déposer</Text>
+          <Text className="text-footnote font-semibold text-primary" numberOfLines={1} adjustsFontSizeToFit>Déposer</Text>
         </Pressable>
       </View>
     </Card>

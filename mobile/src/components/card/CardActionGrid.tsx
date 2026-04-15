@@ -64,12 +64,17 @@ function ActionButton({
         { transform: [{ scale: pressed ? 0.98 : 1 }] },
       ]}
       className={`
-        flex-1 min-w-[45%] p-4 rounded-card border ${borderColor} ${bgColor}
+        flex-1 min-w-[45%] px-3 py-4 rounded-card border ${borderColor} ${bgColor}
         items-center justify-center gap-2
       `}
     >
       <Icon size={24} color={iconColor} />
-      <Text className={`font-medium text-subheadline ${textColor}`}>
+      <Text
+        className={`font-medium text-footnote text-center ${textColor}`}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+      >
         {label}
       </Text>
     </Pressable>

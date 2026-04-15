@@ -16,7 +16,6 @@ import {
   LogOut,
   Lock,
   Shield,
-  HelpCircle,
   Info,
   LucideIcon,
 } from 'lucide-react-native';
@@ -272,14 +271,14 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
           <Text className="text-title1 text-ink-primary mb-1">
             {`${user.firstname ?? ''} ${user.lastname ?? ''}`.trim() || 'Analyste'}
           </Text>
-          <Text className="text-subheadline text-ink-secondary mb-3">
+          <Text className="text-subheadline text-ink-secondary mb-2">
             {user.email}
           </Text>
 
           {/* Role Badge */}
-          <View className="flex-row items-center gap-2 bg-primary-50 px-3 py-1.5 rounded-chip">
-            <Shield size={14} color="#3B82F6" />
-            <Text className="text-footnote text-primary font-medium">
+          <View className="flex-row items-center gap-1.5 bg-primary-50 px-2.5 py-1 rounded-full">
+            <Shield size={12} color="#3B82F6" />
+            <Text className="text-caption1 text-primary font-medium">
               Analyste Fraude
             </Text>
           </View>
@@ -449,21 +448,7 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
           )}
         </Card>
 
-        {/* Support */}
-        <Pressable
-          onPress={() => {
-            light();
-            navigation.navigate('SupportChat');
-          }}
-          className="flex-row justify-center items-center mt-4 mb-8 gap-2"
-        >
-          <HelpCircle size={18} color="#3B82F6" />
-          <Text className="text-subheadline text-primary font-medium">
-            Contacter le support
-          </Text>
-        </Pressable>
-
-        <Text className="text-center text-ink-tertiary text-caption1 mb-4">
+        <Text className="text-center text-ink-tertiary text-caption1 mt-4 mb-4">
           Version 1.0.0 (Build 24)
         </Text>
       </ScrollView>

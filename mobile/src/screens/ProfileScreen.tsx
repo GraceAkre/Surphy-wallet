@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ChevronRight,
+  ChevronDown,
   LogOut,
   Lock,
   User,
@@ -22,12 +23,14 @@ import {
   FileText,
   HelpCircle,
   Shield,
+  ShieldCheck,
   MapPin,
   Check,
   X,
   Download,
   Trash2,
   Camera,
+  Info,
   LucideIcon,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -69,6 +72,7 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [mlInfoExpanded, setMlInfoExpanded] = useState(false);
 
   const [notifSettings, setNotifSettings] = useState({
     suspicious: true,
@@ -589,6 +593,82 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             isLast
           />
         </MenuCard>
+
+        {/* En savoir plus - Protection IA */}
+        <SectionTitle title="En savoir plus" />
+        <Card variant="elevated" padding="none" className="mx-screen mb-6 overflow-hidden">
+          <Pressable
+            onPress={() => {
+              light();
+              setMlInfoExpanded(!mlInfoExpanded);
+            }}
+            className="flex-row items-center justify-between px-4 py-4"
+          >
+            <View className="flex-row items-center gap-3">
+              <View className="w-8 items-center">
+                <ShieldCheck size={20} color="#3B82F6" />
+              </View>
+              <Text className="text-body font-medium text-ink-primary">
+                Comment vos transactions sont protégées
+              </Text>
+            </View>
+            <ChevronDown
+              size={20}
+              color="#86868B"
+              style={{
+                transform: [{ rotate: mlInfoExpanded ? '180deg' : '0deg' }],
+              }}
+            />
+          </Pressable>
+
+          {mlInfoExpanded && (
+            <View className="px-4 pb-4 border-t border-separator-opaque/50">
+              <Text className="text-footnote text-ink-secondary mt-4 mb-3 leading-5">
+                Surphy utilise un système intelligent de protection pour sécuriser
+                chacune de vos transactions en temps réel.
+              </Text>
+
+              <Text className="text-subheadline font-semibold text-ink-primary mb-2">
+                Ce que nous vérifions
+              </Text>
+              <View className="gap-2 mb-4">
+                {[
+                  'Les montants inhabituels pour votre profil',
+                  'Les transactions effectuées à des horaires atypiques',
+                  'Les changements de localisation soudains',
+                  'Les séries de transactions rapprochées',
+                  'Les incohérences entre votre position et votre connexion',
+                  'La validité de votre vérification d\'identité',
+                  'Les doublons et tentatives de paiement répétées',
+                  'Le respect des plafonds réglementaires européens (PSD2)',
+                ].map((item, i) => (
+                  <View key={i} className="flex-row items-start gap-2">
+                    <Text className="text-footnote text-primary mt-0.5">•</Text>
+                    <Text className="text-footnote text-ink-secondary flex-1">{item}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text className="text-subheadline font-semibold text-ink-primary mb-2">
+                Que se passe-t-il si une transaction est signalée ?
+              </Text>
+              <Text className="text-footnote text-ink-secondary leading-5 mb-3">
+                Si notre système détecte un comportement inhabituel, la transaction
+                peut être temporairement suspendue pour vérification. Vous recevrez
+                une notification et pourrez confirmer ou signaler l'opération depuis
+                l'application. En cas de blocage, aucun montant n'est débité de votre compte.
+              </Text>
+
+              <View className="bg-primary-50 rounded-card p-3 flex-row items-start gap-2">
+                <Info size={16} color="#3B82F6" style={{ marginTop: 2 }} />
+                <Text className="text-caption1 text-primary flex-1 leading-4">
+                  Ce système fonctionne automatiquement en arrière-plan.
+                  Aucune action n'est requise de votre part pour en bénéficier.
+                </Text>
+              </View>
+            </View>
+          )}
+        </Card>
 
         {/* Notifications Section */}
         <SectionTitle title="Notifications" />

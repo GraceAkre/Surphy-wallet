@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Bell, Search, ShieldAlert, HelpCircle, ChevronRight } from 'lucide-react-native';
+import { Bell, Search, ShieldAlert, ChevronRight } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { CompositeNavigationProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -171,19 +171,6 @@ export default function AnalystDashboardScreen({ navigation }: AnalystDashboardS
         </Pressable>
       )}
 
-      {/* Support link */}
-      <Pressable
-        onPress={() => {
-          light();
-          navigation.navigate('SupportChat');
-        }}
-        className="flex-row justify-center items-center mt-4 mb-8 gap-2"
-      >
-        <HelpCircle size={18} color="#3B82F6" />
-        <Text className="text-subheadline text-primary font-medium">
-          Besoin d'aide ? Contacter le support
-        </Text>
-      </Pressable>
     </>
   );
 

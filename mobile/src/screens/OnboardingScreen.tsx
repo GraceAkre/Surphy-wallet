@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, Pressable, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ShieldCheck, Mail, ArrowRight } from 'lucide-react-native';
+import { ShieldCheck, Mail } from 'lucide-react-native';
 import Svg, { Circle, Path, G } from 'react-native-svg';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { shadows } from '../utils/shadows';
@@ -50,6 +50,34 @@ const SurphyLogo = () => (
   </View>
 );
 
+const PulseDot = () => {
+  const opacity = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.3,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [opacity]);
+
+  return (
+    <Animated.View
+      style={{ opacity }}
+      className="w-1.5 h-1.5 rounded-full bg-success-500"
+    />
+  );
+};
+
 export default function OnboardingScreen({ navigation }: OnboardingScreenProps) {
   const { light } = useHaptics();
 
@@ -78,10 +106,18 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
           </Text>
         </View>
 
-        {/* 2. Trust Badge */}
+        {/* 2. Trust Badge - Glassmorphism */}
         <View className="items-center">
-          <View className="flex-row items-center bg-success-50 px-5 py-3 rounded-chip gap-2">
-            <ShieldCheck size={20} color="#34C759" />
+          <View
+            className="flex-row items-center px-3 py-2 rounded-chip gap-1.5"
+            style={{
+              backgroundColor: 'rgba(232, 255, 240, 0.6)',
+              borderWidth: 0.5,
+              borderColor: '#34C759',
+            }}
+          >
+            <ShieldCheck size={16} color="#34C759" />
+            <PulseDot />
             <Text className="text-subheadline font-semibold text-success-600">
               Protection IA en temps réel
             </Text>
@@ -97,22 +133,33 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
               shadows.primaryButton,
               { transform: [{ scale: pressed ? 0.98 : 1 }] },
             ]}
-            className="flex-row items-center bg-primary py-4 px-5 rounded-card gap-3"
+            className="flex-row items-center justify-center px-5 rounded-chip gap-3"
+            style={{ height: 52, backgroundColor: '#4B8DF8' }}
           >
-            <Mail size={20} color="white" />
-            <Text className="text-headline text-white flex-1">
-              Continuer avec Email
+            <Mail size={18} color="white" strokeWidth={1.5} />
+            <Text
+              className="text-headline text-white"
+              style={{ fontWeight: '500', letterSpacing: 0.5 }}
+            >
+              Continuer avec votre e-mail étudiant
             </Text>
-            <ArrowRight size={20} color="white" />
           </Pressable>
 
           {/* Footer */}
-          <Text className="text-caption1 text-ink-tertiary text-center leading-5 px-4">
-            En continuant, vous acceptez nos{' '}
-            <Text className="text-primary font-medium">Conditions d'utilisation</Text>
-            {' '}et notre{' '}
-            <Text className="text-primary font-medium">Politique de confidentialité</Text>.
-          </Text>
+          <View className="mt-2 gap-1">
+            <Text className="text-caption1 text-ink-tertiary text-center leading-5 px-4">
+              En continuant, vous acceptez nos
+            </Text>
+            <View className="flex-row justify-center gap-3">
+              <Text className="text-caption1 text-primary font-medium">
+                Conditions d'utilisation
+              </Text>
+              <Text className="text-caption1 text-ink-tertiary">•</Text>
+              <Text className="text-caption1 text-primary font-medium">
+                Politique de confidentialité
+              </Text>
+            </View>
+          </View>
         </View>
 
       </SafeAreaView>

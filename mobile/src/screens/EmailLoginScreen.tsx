@@ -266,11 +266,12 @@ export default function EmailLoginScreen({ navigation }: EmailLoginScreenProps) 
               style={({ pressed }) => [
                 shadows.primaryButton,
                 {
+                  backgroundColor: '#4B8DF8',
                   transform: [{ scale: pressed && !loading ? 0.98 : 1 }],
                   opacity: loading ? 0.8 : 1,
                 },
               ]}
-              className="flex-row items-center justify-center bg-primary py-4 rounded-button gap-2"
+              className="flex-row items-center justify-center bg-primary h-[50px] rounded-button gap-2"
             >
               {loading ? (
                 <ActivityIndicator color="white" />
