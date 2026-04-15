@@ -56,7 +56,7 @@ export function AlertItem({ transaction, onPress }: AlertItemProps) {
         </Text>
         <View className="flex-row items-center gap-1.5 mt-1">
           {transaction.score_ml !== null && (
-            <Badge variant={scoreVariant} size="sm">
+            <Badge variant={scoreVariant} size="md">
               {String(Math.round(transaction.score_ml))}
             </Badge>
           )}

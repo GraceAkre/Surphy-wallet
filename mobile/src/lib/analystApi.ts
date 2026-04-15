@@ -36,11 +36,12 @@ export async function getAnalystStats(): Promise<AnalystStats> {
     .select('*', { count: 'exact', head: true })
     .or('decision.eq.block,status.eq.blocked');
 
-  // Today's transactions (toutes, pas seulement celles avec score)
+  // Transactions traitées aujourd'hui (approved ou blocked, par updated_at)
   const { data: todayData } = await supabase
     .from('transactions')
     .select('score_ml')
-    .gte('created_at', today.toISOString());
+    .or('status.eq.approved,status.eq.blocked')
+    .gte('updated_at', today.toISOString());
 
   const totalToday = todayData?.length ?? 0;
   const scored = todayData?.filter((tx) => tx.score_ml !== null) ?? [];

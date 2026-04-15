@@ -27,6 +27,8 @@ import DepositScreen from './screens/DepositScreen';
 import DepositSuccessScreen from './screens/DepositSuccessScreen';
 import SupportChatScreen from './screens/SupportChatScreen';
 import InterCampusTransferScreen from './screens/InterCampusTransferScreen';
+import TermsScreen from './screens/TermsScreen';
+import PrivacyScreen from './screens/PrivacyScreen';
 
 // --- Imports Écrans Analyste ---
 import AnalystDashboardScreen from './screens/analyst/AnalystDashboardScreen';
@@ -34,6 +36,7 @@ import AnalystAlertsScreen from './screens/analyst/AnalystAlertsScreen';
 import AlertDetailScreen from './screens/analyst/AlertDetailScreen';
 import AnalystProfileScreen from './screens/analyst/AnalystProfileScreen';
 import AnalystNotificationsScreen from './screens/analyst/AnalystNotificationsScreen';
+import WeeklyRecapScreen from './screens/analyst/WeeklyRecapScreen';
 import { AnalystNotificationsProvider } from './contexts/AnalystNotificationsContext';
 
 // --- Définition des Types de Navigation ---
@@ -43,6 +46,10 @@ export type RootStackParamList = {
   Onboarding: undefined;
   EmailLogin: undefined;
   OTPVerification: { email: string };
+
+  // Légal
+  Terms: undefined;
+  Privacy: undefined;
 
   // Flux Principal (Étudiant)
   Main: undefined;
@@ -76,6 +83,7 @@ export type RootStackParamList = {
   // Analyste - Écrans de flux
   AlertDetail: { transactionId: string };
   AnalystNotifications: undefined;
+  WeeklyRecap: undefined;
 };
 
 export type MainTabParamList = {
@@ -87,7 +95,7 @@ export type MainTabParamList = {
 
 export type AnalystTabParamList = {
   AnalystDashboard: undefined;
-  AnalystAlerts: undefined;
+  AnalystAlerts: { initialDecision?: 'review' | 'block' | 'approve' | 'all'; initialPeriod?: 'today' | 'week' | 'month' | 'all' } | undefined;
   AnalystProfile: undefined;
 };
 
@@ -267,6 +275,8 @@ export default function App() {
             <Stack.Screen name="Onboarding" component={OnboardingScreen} />
             <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
             <Stack.Screen name="OTPVerification" component={OTPVerificationScreen} />
+            <Stack.Screen name="Terms" component={TermsScreen} />
+            <Stack.Screen name="Privacy" component={PrivacyScreen} />
           </Stack.Group>
 
           {/* Groupe 2 : Application Principale (Étudiant) */}
@@ -306,6 +316,7 @@ export default function App() {
             <Stack.Screen name="SupportChat" component={SupportChatScreen} />
             <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
             <Stack.Screen name="AnalystNotifications" component={AnalystNotificationsScreen} />
+            <Stack.Screen name="WeeklyRecap" component={WeeklyRecapScreen} />
           </Stack.Group>
 
           {/* Groupe 4 : Modales */}

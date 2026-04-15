@@ -16,6 +16,7 @@ interface InputProps extends Omit<TextInputProps, 'style'> {
   rightIcon?: LucideIcon;
   onRightIconPress?: () => void;
   containerClassName?: string;
+  size?: 'sm' | 'md';
 }
 
 export function Input({
@@ -27,6 +28,7 @@ export function Input({
   onRightIconPress,
   secureTextEntry,
   containerClassName = '',
+  size = 'md',
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
@@ -61,12 +63,12 @@ export function Input({
       >
         {/* Left Icon */}
         {LeftIcon && (
-          <LeftIcon size={20} color="#86868B" style={{ marginRight: 12 }} />
+          <LeftIcon size={size === 'sm' ? 18 : 20} color="#86868B" style={{ marginRight: size === 'sm' ? 8 : 12 }} />
         )}
 
         {/* TextInput */}
         <TextInput
-          className="flex-1 py-3.5 text-body text-ink-primary"
+          className={`flex-1 ${size === 'sm' ? 'py-2.5 text-footnote' : 'py-3.5 text-body'} text-ink-primary`}
           placeholderTextColor="#86868B"
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}

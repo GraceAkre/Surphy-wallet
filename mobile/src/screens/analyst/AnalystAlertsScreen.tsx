@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,10 +27,12 @@ import { useHaptics } from '../../hooks/useHaptics';
 
 type AnalystAlertsScreenProps = {
   navigation: any;
+  route?: { params?: { initialDecision?: 'review' | 'block' | 'approve' | 'all'; initialPeriod?: 'today' | 'week' | 'month' | 'all' } };
 };
 
-export default function AnalystAlertsScreen({ navigation }: AnalystAlertsScreenProps) {
+export default function AnalystAlertsScreen({ navigation, route }: AnalystAlertsScreenProps) {
   const { light } = useHaptics();
+  const initialDecision = route?.params?.initialDecision || 'all';
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,11 +41,24 @@ export default function AnalystAlertsScreen({ navigation }: AnalystAlertsScreenP
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [filter, setFilter] = useState<AlertFilter>({
-    decision: 'all',
+    decision: initialDecision,
     period: 'all',
   });
   const [searchText, setSearchText] = useState('');
   const searchTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Quand on navigue depuis le dashboard avec un filtre, mettre à jour
+  useEffect(() => {
+    const decision = route?.params?.initialDecision;
+    const period = route?.params?.initialPeriod;
+    const updates: Partial<AlertFilter> = {};
+    if (decision && decision !== filter.decision) updates.decision = decision;
+    if (period && period !== filter.period) updates.period = period;
+    if (Object.keys(updates).length > 0) {
+      setFilter((prev) => ({ ...prev, ...updates }));
+      setPage(0);
+    }
+  }, [route?.params?.initialDecision, route?.params?.initialPeriod]);
 
   const fetchData = useCallback(
     async (currentFilter: AlertFilter, currentPage = 0, append = false) => {

@@ -31,6 +31,7 @@ import {
   Trash2,
   Camera,
   Info,
+  Calendar,
   LucideIcon,
 } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -687,8 +688,16 @@ export default function ProfileScreen({ navigation }: ProfileScreenProps) {
             label="Récapitulatif hebdo"
             value={notifSettings.weekly}
             onValueChange={() => toggleSwitch('weekly')}
-            isLast
+            isLast={!notifSettings.weekly}
           />
+          {notifSettings.weekly && (
+            <MenuItem
+              icon={Calendar}
+              label="Voir le récapitulatif"
+              onPress={() => navigation.navigate('WeeklyRecap')}
+              isLast
+            />
+          )}
         </MenuCard>
 
         {/* Support Link */}

@@ -13,6 +13,8 @@ import { useHaptics } from '../hooks/useHaptics';
 type RootStackParamList = {
   Onboarding: undefined;
   EmailLogin: undefined;
+  Terms: undefined;
+  Privacy: undefined;
   Main: undefined;
 };
 
@@ -151,13 +153,17 @@ export default function OnboardingScreen({ navigation }: OnboardingScreenProps) 
               En continuant, vous acceptez nos
             </Text>
             <View className="flex-row justify-center gap-3">
-              <Text className="text-caption1 text-primary font-medium">
-                Conditions d'utilisation
-              </Text>
+              <Pressable onPress={() => navigation.navigate('Terms')}>
+                <Text className="text-caption1 text-primary font-medium">
+                  Conditions d'utilisation
+                </Text>
+              </Pressable>
               <Text className="text-caption1 text-ink-tertiary">•</Text>
-              <Text className="text-caption1 text-primary font-medium">
-                Politique de confidentialité
-              </Text>
+              <Pressable onPress={() => navigation.navigate('Privacy')}>
+                <Text className="text-caption1 text-primary font-medium">
+                  Politique de confidentialité
+                </Text>
+              </Pressable>
             </View>
           </View>
         </View>

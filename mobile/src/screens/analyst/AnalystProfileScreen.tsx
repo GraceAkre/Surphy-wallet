@@ -17,6 +17,7 @@ import {
   Lock,
   Shield,
   Info,
+  Calendar,
   LucideIcon,
 } from 'lucide-react-native';
 import { supabase } from '../../lib/supabase';
@@ -318,8 +319,16 @@ export default function AnalystProfileScreen({ navigation }: AnalystProfileScree
             label="Récapitulatif hebdo"
             value={notifSettings.weekly}
             onValueChange={() => toggleSwitch('weekly')}
-            isLast
+            isLast={!notifSettings.weekly}
           />
+          {notifSettings.weekly && (
+            <MenuItem
+              icon={Calendar}
+              label="Voir le récapitulatif"
+              onPress={() => navigation.navigate('WeeklyRecap')}
+              isLast
+            />
+          )}
         </MenuCard>
 
         {/* Sensibilité ML */}

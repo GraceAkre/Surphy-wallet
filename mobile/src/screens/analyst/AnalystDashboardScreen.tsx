@@ -55,7 +55,16 @@ export default function AnalystDashboardScreen({ navigation }: AnalystDashboardS
         getFlaggedTransactions(10),
       ]);
       setStats(statsData);
-      setFlaggedTransactions(flaggedData);
+      // Tri : review/flagged/blocked en premier, approved en dernier
+      const sorted = [...flaggedData].sort((a, b) => {
+        const priority = (tx: Transaction) => {
+          if (tx.decision === 'review' || tx.status === 'flagged') return 0;
+          if (tx.decision === 'block' || tx.status === 'blocked') return 1;
+          return 2;
+        };
+        return priority(a) - priority(b);
+      });
+      setFlaggedTransactions(sorted);
     } catch (error) {
       console.error('Error fetching analyst dashboard:', error);
     } finally {
@@ -66,6 +75,10 @@ export default function AnalystDashboardScreen({ navigation }: AnalystDashboardS
   useFocusEffect(
     useCallback(() => {
       fetchData();
+
+      // Polling toutes les 30s quand l'écran est visible
+      const interval = setInterval(fetchData, 30_000);
+      return () => clearInterval(interval);
     }, [fetchData])
   );
 
@@ -87,7 +100,7 @@ export default function AnalystDashboardScreen({ navigation }: AnalystDashboardS
   const ListHeader = () => (
     <>
       {/* Header */}
-      <View className="px-screen pt-4 pb-2 flex-row justify-between items-center">
+      <View className="px-screen pt-3 pb-2 flex-row justify-between items-center">
         <Text className="text-title1 text-ink-primary font-bold">Surphy</Text>
         <Pressable
           onPress={() => {
@@ -109,45 +122,67 @@ export default function AnalystDashboardScreen({ navigation }: AnalystDashboardS
       </View>
 
       {/* Risk Gauge Card */}
-      <Card variant="elevated" padding="lg" className="mx-screen mb-6 items-center">
+      <Card variant="elevated" padding="md" className="mx-screen mb-4 items-center">
         <RiskGauge
           score={stats.avgScore}
-          size={240}
-          subtitle={`${stats.totalFlagged} transactions signalées • Aujourd'hui`}
+          size={200}
         />
 
+        <Text className="text-caption2 text-ink-tertiary mt-4 mb-0">
+          Score moyen ML du jour
+        </Text>
+
         {/* Stats row */}
-        <View className="flex-row mt-4 w-full">
-          <View className="flex-1 items-center">
-            <Text className="text-title2 font-bold text-warning">{stats.totalFlagged}</Text>
-            <Text className="text-caption1 text-ink-secondary">Signalées</Text>
-          </View>
-          <View className="w-px bg-separator-opaque" />
-          <View className="flex-1 items-center">
-            <Text className="text-title2 font-bold text-danger">{stats.totalBlocked}</Text>
-            <Text className="text-caption1 text-ink-secondary">Bloquées</Text>
-          </View>
-          <View className="w-px bg-separator-opaque" />
-          <View className="flex-1 items-center">
-            <Text className="text-title2 font-bold text-primary">{stats.totalToday}</Text>
-            <Text className="text-caption1 text-ink-secondary">Aujourd'hui</Text>
-          </View>
+        <View className="flex-row w-full">
+          <Pressable
+            className="flex-1 items-center"
+            onPress={() => {
+              light();
+              navigation.navigate('AnalystAlerts', { initialDecision: 'review' });
+            }}
+          >
+            <Text className="text-title3 font-bold text-warning">{stats.totalFlagged}</Text>
+            <Text className="text-caption2 text-ink-secondary mt-0.5">File d'attente</Text>
+          </Pressable>
+          <View className="w-px bg-separator-opaque/50" />
+          <Pressable
+            className="flex-1 items-center"
+            onPress={() => {
+              light();
+              navigation.navigate('AnalystAlerts', { initialDecision: 'block' });
+            }}
+          >
+            <Text className="text-title3 font-bold text-danger">{stats.totalBlocked}</Text>
+            <Text className="text-caption2 text-ink-secondary mt-0.5">Urgentes</Text>
+          </Pressable>
+          <View className="w-px bg-separator-opaque/50" />
+          <Pressable
+            className="flex-1 items-center"
+            onPress={() => {
+              light();
+              navigation.navigate('AnalystAlerts', { initialDecision: 'approve', initialPeriod: 'today' });
+            }}
+          >
+            <Text className="text-title3 font-bold text-primary">{stats.totalToday}</Text>
+            <Text className="text-caption2 text-ink-secondary mt-0.5">Traitées aujourd'hui</Text>
+          </Pressable>
         </View>
       </Card>
 
       {/* Search */}
-      <View className="px-screen mb-4">
+      <View className="px-screen mb-3">
         <Input
           placeholder="Rechercher une transaction..."
           leftIcon={Search}
+          size="sm"
         />
       </View>
 
       {/* Section Title */}
-      <View className="px-screen flex-row items-center justify-between mb-3">
+      <View className="px-screen flex-row items-center justify-between mb-2">
         <View className="flex-row items-center gap-2">
-          <ShieldAlert size={20} color="#FF9500" />
-          <Text className="text-title2 text-ink-primary">Transactions suspectes</Text>
+          <ShieldAlert size={18} color="#FF9500" />
+          <Text className="text-headline text-ink-primary">Transactions suspectes</Text>
         </View>
       </View>
     </>
