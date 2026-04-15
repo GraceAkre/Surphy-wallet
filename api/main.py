@@ -425,6 +425,8 @@ class IntercampusReceiveRequest(PydanticBaseModel):
     amount: float
     currency: str = "EPC"
     initiator_user_id: str | None = None
+    sender_name: str | None = None
+    sender_email: str | None = None
     api_key: str
     source_campus_id: str | None = None
     enriched_data: dict[str, Any] | None = None
@@ -653,13 +655,15 @@ async def intercampus_receive(
                 "status": "approved",
                 "request_id": request_id,
                 "provider": "intercampus",
-                "merchant_id": f"intercampus:{payload.source_campus_id or 'unknown'}",
+                "merchant_id": f"intercampus:{payload.sender_name or payload.sender_email or payload.source_campus_id or 'unknown'}",
                 "reasons_detail": {
                     "intercampus": {
                         "source_campus_id": payload.source_campus_id,
                         "source_wallet_id": payload.source_wallet_id,
                         "initiator_user_id": payload.initiator_user_id,
                         "external_tx_id": payload.transaction_id,
+                        "sender_name": payload.sender_name,
+                        "sender_email": payload.sender_email,
                     }
                 },
             })
