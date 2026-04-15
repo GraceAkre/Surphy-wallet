@@ -609,8 +609,13 @@ async def intercampus_receive(
 
         # 3. Crédite le wallet de l'utilisateur destinataire (si spécifié)
         new_balance = None
+        user_wallet_id = None
         if payload.destination_user_id:
             try:
+                # Récupère le wallet personnel pour avoir son ID
+                user_wallet = await db.get_user_wallet(payload.destination_user_id)
+                if user_wallet:
+                    user_wallet_id = user_wallet["id"]
                 new_balance = await db.credit_user_wallet(
                     payload.destination_user_id, payload.amount
                 )
@@ -628,6 +633,9 @@ async def intercampus_receive(
                 {"balance": new_balance}
             ).eq("id", payload.destination_wallet_id).execute()
 
+        # Détermine le wallet_id pour l'enregistrement de la transaction
+        actual_wallet_id = user_wallet_id or payload.destination_wallet_id
+
         # 4. Enregistre la transaction
         # Note : le schéma transactions n'a pas de colonne source_campus_code / external_tx_id / type.
         # On stocke les métadonnées intercampus dans merchant_id + reasons_detail pour ne pas les perdre.
@@ -636,7 +644,7 @@ async def intercampus_receive(
             await db.create_transaction({
                 "id": tx_id,
                 "user_id": payload.destination_user_id or payload.initiator_user_id,
-                "wallet_id": payload.destination_wallet_id,
+                "wallet_id": actual_wallet_id,
                 "amount": payload.amount,
                 "currency": payload.currency,
                 "country": "FR",
