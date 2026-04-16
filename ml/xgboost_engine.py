@@ -51,7 +51,7 @@ class HybridFraudEngine:
     THRESHOLD_AMOUNT_HIGH = float(os.getenv("THRESHOLD_AMOUNT_HIGH", "2500"))
     THRESHOLD_NIGHT_START = int(os.getenv("THRESHOLD_NIGHT_START", "0"))
     THRESHOLD_NIGHT_END = int(os.getenv("THRESHOLD_NIGHT_END", "6"))
-    THRESHOLD_VELOCITY_COUNT = int(os.getenv("THRESHOLD_VELOCITY_COUNT", "3"))
+    THRESHOLD_VELOCITY_COUNT = int(os.getenv("THRESHOLD_VELOCITY_COUNT", "4"))
     THRESHOLD_IP_GEO_DISTANCE = float(os.getenv("THRESHOLD_IP_GEO_DISTANCE", "1000"))
     THRESHOLD_DUPLICATE_WINDOW = int(os.getenv("THRESHOLD_DUPLICATE_WINDOW", "2"))
     THRESHOLD_SCA_DAILY = float(os.getenv("THRESHOLD_SCA_DAILY", "750"))
@@ -131,12 +131,15 @@ class HybridFraudEngine:
                     "message": f"KYC expiré depuis le {kyc_expires.strftime('%d/%m/%Y')}",
                 }
 
-        # R7 — Doublon
+        # R7 — Doublon (poids réduit à 35, atténué si micro-tx < 50 EPC)
         if context.get("has_duplicate"):
+            r7_weight = 35
+            if request.amount < 50:
+                r7_weight = 18  # Atténuation micro-transactions
             reasons.append("DUPLICATE_REQUEST")
             reasons_detail["DUPLICATE_REQUEST"] = {
                 "code": "DUPLICATE_REQUEST",
-                "contribution": 50,
+                "contribution": r7_weight,
                 "threshold": self.THRESHOLD_DUPLICATE_WINDOW,
                 "actual": None,
                 "message": f"Transaction dupliquée détectée (< {self.THRESHOLD_DUPLICATE_WINDOW} min)",
@@ -231,7 +234,7 @@ class HybridFraudEngine:
             "flag_R1_amount_high": 1 if amount > self.THRESHOLD_AMOUNT_HIGH else 0,
             "flag_R2_time_suspicious": 1 if self.THRESHOLD_NIGHT_START <= hour < self.THRESHOLD_NIGHT_END else 0,
             "flag_R3_location_change": 1 if (last_country and request.country != last_country) else 0,
-            "flag_R4_velocity_high": 1 if recent_tx_count >= self.THRESHOLD_VELOCITY_COUNT else 0,
+            "flag_R4_velocity_high": 1 if recent_tx_count >= self.THRESHOLD_VELOCITY_COUNT else 0,  # seuil: 4 tx/5min
             "flag_R5_ip_geo_mismatch": 1 if ip_geo_distance > self.THRESHOLD_IP_GEO_DISTANCE else 0,
             "flag_R6_kyc_expired": 0 if kyc_valid else 1,
             "flag_R7_duplicate": 1 if context.get("has_duplicate") else 0,
@@ -239,14 +242,18 @@ class HybridFraudEngine:
             "flag_R9_sca_threshold": 1 if (daily_total + amount) > self.THRESHOLD_SCA_DAILY else 0,
         }
 
+        # Atténuation micro-transactions : si montant < 50 EPC, R4 et R7 poids /2
+        r4_weight = 35 if amount >= 50 else 18
+        r7_weight = 35 if amount >= 50 else 18
+
         rule_score = min(
             flags["flag_R1_amount_high"] * 30
             + flags["flag_R2_time_suspicious"] * 20
             + flags["flag_R3_location_change"] * 25
-            + flags["flag_R4_velocity_high"] * 35
+            + flags["flag_R4_velocity_high"] * r4_weight
             + flags["flag_R5_ip_geo_mismatch"] * 40
             + flags["flag_R6_kyc_expired"] * 15
-            + flags["flag_R7_duplicate"] * 50
+            + flags["flag_R7_duplicate"] * r7_weight
             + flags["flag_R8_campus_blocked"] * 20
             + flags["flag_R9_sca_threshold"] * 35,
             100,
@@ -420,14 +427,17 @@ class HybridFraudEngine:
                 }
         else:
             # Fallback: utiliser les flags déclenchés
+            _amount = features.get("amount", 0)
+            _r4w = 35 if _amount >= 50 else 18
+            _r7w = 35 if _amount >= 50 else 18
             WEIGHTS = {
                 "flag_R1_amount_high": ("AMOUNT_HIGH", 30),
                 "flag_R2_time_suspicious": ("TIME_SUSPICIOUS", 20),
                 "flag_R3_location_change": ("LOCATION_CHANGE", 25),
-                "flag_R4_velocity_high": ("VELOCITY_HIGH", 35),
+                "flag_R4_velocity_high": ("VELOCITY_HIGH", _r4w),
                 "flag_R5_ip_geo_mismatch": ("IP_GEO_MISMATCH", 40),
                 "flag_R6_kyc_expired": ("KYC_EXPIRED", 15),
-                "flag_R7_duplicate": ("DUPLICATE_REQUEST", 50),
+                "flag_R7_duplicate": ("DUPLICATE_REQUEST", _r7w),
                 "flag_R8_campus_blocked": ("CAMPUS_NOT_ALLOWED", 20),
                 "flag_R9_sca_threshold": ("SCA_THRESHOLD", 35),
             }

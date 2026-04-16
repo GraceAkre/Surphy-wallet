@@ -91,7 +91,7 @@ RULES_CONFIG: dict[str, RuleConfig] = {
     ),
     "R7": RuleConfig(
         code=ReasonCode.DUPLICATE_REQUEST,
-        weight=50,
+        weight=35,
         priority="P0",
         description="Transaction similaire détectée récemment (doublon potentiel)",
     ),
@@ -112,7 +112,7 @@ RULES_CONFIG: dict[str, RuleConfig] = {
 # Seuils configurables
 THRESHOLDS = {
     "amount_high_epc": float(os.getenv("THRESHOLD_AMOUNT_HIGH", "2500")),
-    "velocity_count": int(os.getenv("THRESHOLD_VELOCITY_COUNT", "3")),
+    "velocity_count": int(os.getenv("THRESHOLD_VELOCITY_COUNT", "4")),
     "velocity_window_min": int(os.getenv("THRESHOLD_VELOCITY_WINDOW", "5")),
     "ip_geo_distance_km": float(os.getenv("THRESHOLD_IP_GEO_DISTANCE", "1000")),
     "duplicate_window_min": int(os.getenv("THRESHOLD_DUPLICATE_WINDOW", "2")),

@@ -429,7 +429,7 @@ BEGIN
     FROM transactions
     WHERE user_id = p_user_id
       AND created_at > NOW() - (p_minutes || ' minutes')::INTERVAL
-      AND status IN ('pending', 'approved');
+      AND status IN ('pending', 'approved', 'flagged');
     RETURN COALESCE(v_count, 0);
 END;
 $$;
@@ -444,7 +444,7 @@ BEGIN
     FROM transactions
     WHERE user_id = p_user_id
       AND created_at >= DATE_TRUNC('day', NOW())
-      AND status IN ('pending', 'approved')
+      AND status IN ('pending', 'approved', 'flagged')
       AND direction = 'outgoing';
     RETURN v_sum;
 END;
