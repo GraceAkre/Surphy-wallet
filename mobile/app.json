@@ -19,10 +19,19 @@
       "adaptiveIcon": {
         "backgroundColor": "#3B82F6"
       },
-      "package": "com.surphy.wallet"
+      "package": "com.surphy.wallet",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "plugins": [
       "expo-local-authentication"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "bff119d0-9fa8-40f9-bd2f-9ab53fe6a98e"
+      }
+    }
   }
 }
