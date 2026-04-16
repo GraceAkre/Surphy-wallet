@@ -16,7 +16,7 @@ services:
     runtime: docker
     region: frankfurt          # EU pour la latence Supabase (EU)
     plan: free                 # free tier pour le staging, starter pour prod
-    branch: infra/supabase-core   # branche principale
+    branch: Surphy-wallet
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
