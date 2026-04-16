@@ -108,69 +108,15 @@ class HybridFraudEngine:
     # ============================================================
     def _check_hard_blocks(self, request, context: dict) -> Optional[dict]:
         """
-        Vérifie les règles critiques qui bloquent immédiatement.
-        Retourne None si OK, ou un dict de résultat si block.
+        Vérifie les règles critiques. Désactivé — tout passe par le scoring
+        hybride (règles + XGBoost) pour garantir la cohérence des seuils
+        de sensibilité (souple/normal/strict).
+
+        Hard-block ne se déclenche plus directement. Les règles R6, R7, R9
+        sont toujours évaluées via _build_features() et contribuent au
+        rule_score qui pilote la décision finale.
         """
-        reasons = []
-        reasons_detail = {}
-
-        # R6 — KYC expiré
-        kyc_expires = context.get("user", {}).get("kyc_expires_at")
-        if kyc_expires:
-            if isinstance(kyc_expires, str):
-                kyc_expires = datetime.fromisoformat(kyc_expires)
-            # Normaliser les timezones pour la comparaison
-            now = datetime.now(kyc_expires.tzinfo) if kyc_expires.tzinfo else datetime.now()
-            if kyc_expires < now:
-                reasons.append("KYC_EXPIRED")
-                reasons_detail["KYC_EXPIRED"] = {
-                    "code": "KYC_EXPIRED",
-                    "contribution": 15,
-                    "threshold": None,
-                    "actual": None,
-                    "message": f"KYC expiré depuis le {kyc_expires.strftime('%d/%m/%Y')}",
-                }
-
-        # R7 — Doublon (poids réduit à 35, atténué si micro-tx < 50 EPC)
-        if context.get("has_duplicate"):
-            r7_weight = 35
-            if request.amount < 50:
-                r7_weight = 18  # Atténuation micro-transactions
-            reasons.append("DUPLICATE_REQUEST")
-            reasons_detail["DUPLICATE_REQUEST"] = {
-                "code": "DUPLICATE_REQUEST",
-                "contribution": r7_weight,
-                "threshold": self.THRESHOLD_DUPLICATE_WINDOW,
-                "actual": None,
-                "message": f"Transaction dupliquée détectée (< {self.THRESHOLD_DUPLICATE_WINDOW} min)",
-            }
-
-        # R9 — Seuil PSD2/SCA
-        daily_total = context.get("daily_total", 0)
-        cumul = daily_total + request.amount
-        if cumul > self.THRESHOLD_SCA_DAILY:
-            reasons.append("SCA_THRESHOLD")
-            reasons_detail["SCA_THRESHOLD"] = {
-                "code": "SCA_THRESHOLD",
-                "contribution": 35,
-                "threshold": self.THRESHOLD_SCA_DAILY,
-                "actual": cumul,
-                "message": f"Cumul journalier {cumul:.2f} EPC > seuil SCA {self.THRESHOLD_SCA_DAILY} EPC",
-            }
-
-        # Hard-block uniquement si le score total des règles critiques atteint le seuil de block
-        if reasons:
-            score = min(sum(r["contribution"] for r in reasons_detail.values()), 100)
-            if score >= self.threshold_block:
-                return {
-                    "score": score,
-                    "decision": "block",
-                    "reasons": reasons[:3],
-                    "reasons_detail": reasons_detail,
-                    "source": "hard_block",
-                }
-
-        return None  # Pas de hard-block, on continue vers le ML
+        return None  # Tout passe par le scoring hybride
 
     # ============================================================
     # ÉTAPE 2 — Feature engineering
