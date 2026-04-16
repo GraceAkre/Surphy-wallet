@@ -468,6 +468,7 @@ BEGIN
       AND t.amount = p_amount
       AND t.merchant_id = p_merchant_id
       AND t.created_at > NOW() - (p_window_minutes || ' minutes')::INTERVAL
+      AND t.status NOT IN ('blocked', 'flagged')
       AND (p_exclude_request_id IS NULL OR t.request_id != p_exclude_request_id)
     ORDER BY t.created_at DESC
     LIMIT 1;

@@ -155,16 +155,17 @@ class HybridFraudEngine:
                 "message": f"Cumul journalier {cumul:.2f} EPC > seuil SCA {self.THRESHOLD_SCA_DAILY} EPC",
             }
 
-        # Si doublon ou KYC expiré → block immédiat
-        if "DUPLICATE_REQUEST" in reasons or "KYC_EXPIRED" in reasons:
+        # Hard-block uniquement si le score total des règles critiques atteint le seuil de block
+        if reasons:
             score = min(sum(r["contribution"] for r in reasons_detail.values()), 100)
-            return {
-                "score": max(score, self.threshold_block),  # Forcer block
-                "decision": "block",
-                "reasons": reasons[:3],
-                "reasons_detail": reasons_detail,
-                "source": "hard_block",
-            }
+            if score >= self.threshold_block:
+                return {
+                    "score": score,
+                    "decision": "block",
+                    "reasons": reasons[:3],
+                    "reasons_detail": reasons_detail,
+                    "source": "hard_block",
+                }
 
         return None  # Pas de hard-block, on continue vers le ML
 
