@@ -2,7 +2,14 @@
 import { supabase } from './supabase';
 import type { User, Wallet, Transaction, Peer, CardDetails, MoneyRequest, CampusWallet } from './types';
 import { buildMLPayload } from './geoContext';
-import { scoreTransaction, applyMLResult, ML_API_URL } from './mlClient';
+import { scoreTransaction, applyMLResult, ML_API_URL, MLResult } from './mlClient';
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
 
 /**
  * Score une transaction via le moteur ML et met à jour la BDD
@@ -565,18 +572,53 @@ export async function transferFunds(
   amount: number,
   user?: User,
 ): Promise<{ success: boolean; transactionId: string | null; errorMessage: string | null }> {
-  // 1. Générer un request_id unique (idempotence)
-  const requestId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
+  let cachedMLResult: MLResult | null = null;
 
-  // 2. Appeler la RPC transfer_funds (résout le wallet destinataire côté serveur)
+  // 1. Pré-scoring ML AVANT le transfert
+  if (user) {
+    const tempTxId = generateUUID();
+    const payload = buildMLPayload(user, tempTxId, amount, 'transfer');
+    cachedMLResult = await scoreTransaction(payload);
+
+    if (cachedMLResult && cachedMLResult.decision === 'block') {
+      // Transaction bloquée par le ML — créer un enregistrement bloqué sans transférer
+      const { data: blockedTx } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          wallet_id: fromWalletId,
+          provider: 'internal',
+          merchant_id: payload.merchant_id,
+          amount,
+          currency: 'EPC',
+          country: payload.country,
+          city: payload.city,
+          transaction_type: 'transfer',
+          direction: 'outgoing',
+          status: 'blocked',
+          request_id: generateUUID(),
+          score_ml: cachedMLResult.score,
+          decision: cachedMLResult.decision,
+          reasons_json: cachedMLResult.reasons,
+          reasons_detail: cachedMLResult.reasons_detail,
+        })
+        .select('id')
+        .single();
+
+      return {
+        success: false,
+        transactionId: blockedTx?.id || null,
+        errorMessage: `Transaction bloquée par la sécurité (score: ${cachedMLResult.score}/100)`,
+      };
+    }
+  }
+
+  // 2. Appeler la RPC transfer_funds
   const { data, error } = await supabase.rpc('transfer_funds', {
     p_from_wallet_id: fromWalletId,
     p_to_user_id: toUserId,
     p_amount: amount,
-    p_request_id: requestId,
+    p_request_id: generateUUID(),
   });
 
   if (error) {
@@ -586,9 +628,19 @@ export async function transferFunds(
 
   const result = data as { success: boolean; transaction_id: string | null; error_message: string | null };
 
-  // 3. Scoring ML (silencieux)
+  // 3. Appliquer le résultat ML sur la transaction créée
   if (result.success && result.transaction_id && user) {
-    await scoreAndUpdate(result.transaction_id, amount, 'transfer', user);
+    const mlPayload = buildMLPayload(user, result.transaction_id, amount, 'transfer');
+    const mlRes = cachedMLResult || await scoreTransaction(mlPayload);
+    if (mlRes) {
+      await applyMLResult(
+        result.transaction_id,
+        mlPayload.country,
+        mlPayload.city,
+        mlPayload.merchant_id,
+        mlRes,
+      );
+    }
   }
 
   return {

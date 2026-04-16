@@ -13,7 +13,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import hashlib
 import httpx
@@ -730,6 +730,108 @@ async def intercampus_send(
                 message=f"Insufficient balance: {user_wallet['balance']} < {payload.amount}",
             )
 
+        # 2b. Scoring ML avant transfert
+        try:
+            engine: HybridFraudEngine = app.state.ml_engine
+
+            # Charger les seuils ML
+            ml_config = await db.fetch_ml_config()
+            if ml_config:
+                engine.update_thresholds(
+                    ml_config.get("threshold_approve", 30),
+                    ml_config.get("threshold_block", 70),
+                )
+
+            # Charger le contexte utilisateur
+            user_data = await db.fetch_user(user_id)
+            last_tx = await db.fetch_last_transaction(user_id)
+            recent_count = await db.count_recent_transactions(user_id, minutes=5)
+
+            merchant_label_ml = (
+                f"intercampus:{payload.destination_email}"
+                if payload.destination_email
+                else f"intercampus:{payload.destination_wallet_id}"
+            )
+            duplicate = await db.find_duplicate_transaction(
+                user_id=user_id,
+                amount=payload.amount,
+                merchant_id=merchant_label_ml,
+                window_minutes=2,
+            )
+            daily_total = await db.sum_daily_transactions(user_id)
+
+            ml_context = {
+                "user": user_data or {},
+                "last_transaction_country": last_tx.get("country") if last_tx else None,
+                "recent_transaction_count": recent_count,
+                "has_duplicate": duplicate is not None,
+                "daily_total": daily_total,
+            }
+
+            ml_request = MLAnalysisRequest(
+                transaction_id=uuid4(),
+                user_id=UUID(user_id),
+                amount=payload.amount,
+                currency=payload.currency,
+                country="FR",
+                city=user_data.get("campus", "Lyon") if user_data else "Lyon",
+                merchant_id=merchant_label_ml[:100],
+                timestamp=datetime.now(timezone.utc),
+            )
+
+            ml_result = await engine.analyze(ml_request, ml_context)
+            ml_score = ml_result["score"]
+            ml_decision = ml_result["decision"]
+
+            logger.info(
+                f'{{"request_id":"{request_id}","intercampus_send_ml":'
+                f'{{"score":{ml_score},"decision":"{ml_decision}","reasons":{ml_result["reasons"]}}}}}'
+            )
+
+            if ml_decision == "block":
+                # Enregistrer la transaction bloquée sans transférer
+                blocked_tx_id = str(uuid4())
+                try:
+                    await db.create_transaction({
+                        "id": blocked_tx_id,
+                        "user_id": user_id,
+                        "wallet_id": actual_wallet_id,
+                        "amount": payload.amount,
+                        "currency": payload.currency,
+                        "country": "FR",
+                        "transaction_type": "transfer",
+                        "direction": "outgoing",
+                        "status": "blocked",
+                        "request_id": request_id,
+                        "provider": "intercampus",
+                        "merchant_id": merchant_label_ml[:100],
+                        "score_ml": ml_score,
+                        "decision": ml_decision,
+                        "reasons_json": ml_result["reasons"],
+                        "reasons_detail": {
+                            **ml_result.get("reasons_detail", {}),
+                            "intercampus": {
+                                "destination_wallet_id": payload.destination_wallet_id,
+                                "destination_user_id": payload.destination_user_id,
+                                "destination_email": payload.destination_email,
+                                "destination_name": payload.destination_name,
+                            },
+                        },
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to record blocked intercampus tx: {e}")
+
+                return IntercampusSendResponse(
+                    success=False,
+                    status="blocked",
+                    message=f"Transaction bloquée par la sécurité (score: {ml_score}/100)",
+                    transaction_id=blocked_tx_id,
+                    fraud_score=ml_score,
+                )
+        except Exception as e:
+            logger.error(f"ML scoring failed for intercampus-send: {e}", exc_info=True)
+            # En cas d'erreur ML, on continue le transfert (fail-open)
+
         # 3. Débite le wallet local
         try:
             new_balance = await db.debit_user_wallet(user_id, payload.amount)
@@ -795,8 +897,16 @@ async def intercampus_send(
             if payload.destination_email
             else f"intercampus:{payload.destination_wallet_id}"
         )
+        # Détermine le statut ML (review → flagged, approve → approved)
+        tx_status = "approved"
         try:
-            await db.create_transaction({
+            if ml_decision == "review":
+                tx_status = "flagged"
+        except NameError:
+            pass  # ml_decision non défini si le scoring a échoué
+
+        try:
+            tx_data: dict[str, Any] = {
                 "id": tx_id,
                 "user_id": user_id,
                 "wallet_id": actual_wallet_id,
@@ -805,7 +915,7 @@ async def intercampus_send(
                 "country": "FR",
                 "transaction_type": "transfer",
                 "direction": "outgoing",
-                "status": "approved",
+                "status": tx_status,
                 "request_id": request_id,
                 "provider": "intercampus",
                 "merchant_id": merchant_label[:100],  # VARCHAR(100)
@@ -819,7 +929,21 @@ async def intercampus_send(
                         "external_tx_id": destination_tx_id,
                     }
                 },
-            })
+            }
+
+            # Ajouter les résultats ML si disponibles
+            try:
+                tx_data["score_ml"] = ml_score
+                tx_data["decision"] = ml_decision
+                tx_data["reasons_json"] = ml_result["reasons"]
+                tx_data["reasons_detail"] = {
+                    **ml_result.get("reasons_detail", {}),
+                    "intercampus": tx_data["reasons_detail"]["intercampus"],
+                }
+            except NameError:
+                pass  # ml_score/ml_decision non définis si le scoring a échoué
+
+            await db.create_transaction(tx_data)
         except Exception as e:
             logger.error(f"❌ Failed to record outgoing intercampus tx {tx_id}: {e}", exc_info=True)
 
