@@ -514,15 +514,21 @@ class HybridFraudEngine:
                      f"recent_tx_count={features['recent_transaction_count']}, "
                      f"daily_total={features['daily_total']}")
 
-        # Étape 3 — ML scoring
-        fraud_proba = self._ml_score(features)
-        score = int(min(fraud_proba * 100, 100))
-
-        # Si le rule_score est significatif mais XGBoost sous-estime, prendre le max
+        # Étape 3 — Scoring
+        # Le score principal est basé sur les règles déterministes R1-R9.
+        # XGBoost est utilisé comme bonus (+10% max) quand il détecte un
+        # pattern supplémentaire non couvert par les règles.
         rule_score = features["rule_score"]
-        if rule_score > score:
-            logger.info(f"ML override: XGBoost score={score}, rule_score={rule_score} — using rule_score")
-            score = rule_score
+        fraud_proba = self._ml_score(features)
+        xgb_score = int(min(fraud_proba * 100, 100))
+
+        # Score final = rules + bonus XGBoost plafonné à 10 points
+        xgb_bonus = max(0, xgb_score - rule_score)
+        xgb_bonus = min(xgb_bonus, 10)  # Bonus max 10 points
+        score = min(rule_score + xgb_bonus, 100)
+
+        logger.info(f"Scoring: rule_score={rule_score}, xgb_score={xgb_score}, "
+                     f"xgb_bonus={xgb_bonus}, final_score={score}")
 
         # Étape 4 — Décision
         decision = self._decide(score)
