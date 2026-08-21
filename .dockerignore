@@ -12,6 +12,9 @@ CLAUDE.md
 # Mobile app (not needed for API)
 mobile/
 
+# Captures d'écran de l'app mobile (inutiles pour l'API)
+captures-surphy-wallet/
+
 # Tests
 tests/
 
